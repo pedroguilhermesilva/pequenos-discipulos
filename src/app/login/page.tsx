@@ -90,6 +90,21 @@ export default function LoginPage() {
             >
               Criar Conta
             </button>
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-[#dbe6de]"></span>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-[#61896b]">Ou</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push('/onboarding/step-1')}
+              className="w-full py-3 border-2 border-dashed border-[#61896b] text-[#61896b] font-bold rounded-lg hover:bg-[#61896b]/5 transition-all"
+            >
+              Acessar em Modo de Desenvolvimento
+            </button>
           </div>
         </form>
 
