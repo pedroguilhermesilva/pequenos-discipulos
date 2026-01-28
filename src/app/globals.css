@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #f6f8f6;
+    --foreground: #111813;
+  }
+
+  .dark {
+    --background: #102215;
+    --foreground: #ffffff;
+  }
+}
+
+body {
+  @apply bg-background-light text-[#111813] dark:bg-background-dark dark:text-white antialiased;
+}
+
+@layer utilities {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
