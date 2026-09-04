@@ -1,26 +1,23 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Crimson_Pro, Noto_Sans } from "next/font/google";
+import { Fraunces, DM_Sans } from "next/font/google";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const fraunces = Fraunces({
   subsets: ["latin"],
-  variable: "--font-plus-jakarta-sans",
+  variable: "--font-fraunces",
+  display: "swap",
 });
 
-const crimsonPro = Crimson_Pro({
+const dmSans = DM_Sans({
   subsets: ["latin"],
-  variable: "--font-crimson-pro",
-});
-
-const notoSans = Noto_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-noto-sans",
+  variable: "--font-dm-sans",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Pequenos Discípulos - Educação Bíblica Infantil",
-  description: "Bíblia para Pequenos - Inteligência Artificial com valores eternos",
+  title: "Pequenos Discípulos — Histórias bíblicas na idade certa",
+  description: "Histórias bíblicas personalizadas para cada fase do crescimento do seu pequeno.",
 };
 
 export default function RootLayout({
@@ -29,17 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="light">
+    <html lang="pt-BR">
       <head>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body
-        className={`${plusJakartaSans.variable} ${crimsonPro.variable} ${notoSans.variable} font-display`}
-      >
-        {children}
+      <body className={`${fraunces.variable} ${dmSans.variable}`}>
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   );

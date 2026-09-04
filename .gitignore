@@ -2,6 +2,12 @@ node_modules
 .next
 out
 build
+.env
+.env.development
 .env*.local
 .vercel
 *.log
+storage/
+coverage/
+test-results/
+playwright-report/

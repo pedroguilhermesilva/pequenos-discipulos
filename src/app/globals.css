@@ -4,18 +4,29 @@
 
 @layer base {
   :root {
-    --background: #f6f8f6;
-    --foreground: #111813;
-  }
-
-  .dark {
-    --background: #102215;
-    --foreground: #ffffff;
+    --color-pergaminho: #F8F4EE;
+    --color-tinta: #1E293B;
+    --color-oliva: #64748B;
+    --color-dourado: #FBBF24;
+    --color-amber: #FBBF24;
+    --color-ceu: #0284C7;
+    --color-ceu-claro: #E0F2FE;
+    --color-vida: #D97706;
+    --color-borda: #E8E2D8;
+    --color-pergaminho-escuro: #F3EDE4;
+    --color-laranja: #F97316;
+    --color-laranja-claro: #FFFBEB;
+    --color-laranja-suave: #FFF7ED;
+    --color-aprovado: #B45309;
+    --color-aprovado-claro: #FEF3C7;
+    --radius-livro: 1.25rem;
+    --radius-livro-xl: 1.5rem;
+    --shadow-livro: 0 4px 24px rgba(44, 36, 22, 0.08);
   }
 }
 
 body {
-  @apply bg-background-light text-[#111813] dark:bg-background-dark dark:text-white antialiased;
+  @apply bg-pergaminho text-tinta font-sans antialiased;
 }
 
 @layer utilities {
@@ -29,5 +40,61 @@ body {
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .textura-pergaminho {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23B8A88A' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 font-bold rounded-livro shadow-livro transition-all;
+    @apply bg-gradient-to-r from-amber to-laranja text-white;
+    @apply hover:from-amber/90 hover:to-laranja/90;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja focus-visible:ring-offset-2;
+  }
+
+  .palavra-interativa {
+    @apply inline-flex items-center gap-1 font-bold text-dourado underline decoration-dotted decoration-2 underline-offset-4;
+    @apply hover:scale-105 transition-transform cursor-pointer;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-dourado focus-visible:ring-offset-2 rounded;
+  }
+
+  .palavra-interativa-vida {
+    @apply inline-flex items-center gap-1 font-bold text-vida underline decoration-dotted decoration-2 underline-offset-4;
+    @apply hover:scale-105 transition-transform cursor-pointer;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-vida focus-visible:ring-offset-2 rounded;
+  }
+
+  .audio-pill {
+    @apply inline-flex items-center gap-1.5 text-sm font-bold underline decoration-dotted decoration-2 underline-offset-4 transition;
+    @apply hover:scale-105 active:scale-100;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded;
+  }
+
+  .audio-pill--efeito {
+    @apply text-ceu focus-visible:ring-ceu;
+  }
+
+  .audio-pill--fala {
+    @apply text-laranja focus-visible:ring-laranja;
+  }
+
+  .audio-pill--ambiente {
+    @apply text-indigo-600 focus-visible:ring-indigo-400;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-slide-in-right,
+    .animate-shimmer {
+      animation: none !important;
+    }
+    .palavra-interativa,
+    .palavra-interativa-vida {
+      @apply hover:scale-100;
+    }
+    .audio-pill {
+      @apply hover:scale-100;
+    }
   }
 }

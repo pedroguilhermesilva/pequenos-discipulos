@@ -1,8 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { createClient } from '@/lib/supabase-browser';
+import Link from 'next/link';
+import { hasProfiles } from '@/lib/profiles/storage';
 import { useRouter } from 'next/navigation';
+import { Logo } from '@/components/ui/Logo';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,108 +15,120 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const supabase = createClient();
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) setMessage(error.message);
-    else setMessage('Verifique seu e-mail para confirmar o cadastro.');
-    setLoading(false);
+  const continueAsDev = () => {
+    router.push(hasProfiles() ? '/perfis' : '/onboarding/step-1');
   };
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) setMessage(error.message);
-    else router.push('/onboarding/step-1');
+    setMessage('');
+
+    // Dev auth: any non-empty credentials continue into the app.
+    if (!email.trim() || !password.trim()) {
+      setMessage('Informe e-mail e senha para continuar.');
+      setLoading(false);
+      return;
+    }
+
+    continueAsDev();
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-background-light flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 border border-[#dbe6de]">
-        <div className="flex flex-col items-center mb-8">
-          <div className="size-12 text-primary mb-4">
-             <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13.8261 30.5736C16.7203 29.8826 20.2244 29.4783 24 29.4783C27.7756 29.4783 31.2797 29.8826 34.1739 30.5736C36.9144 31.2278 39.9967 32.7669 41.3563 33.8352L24.8486 7.36089C24.4571 6.73303 23.5429 6.73303 23.1514 7.36089L6.64374 33.8352C8.00331 32.7669 11.0856 31.2278 13.8261 30.5736Z" fill="currentColor"></path>
-              <path clipRule="evenodd" d="M39.998 35.764C39.9944 35.7463 39.9875 35.7155 39.9748 35.6706C39.9436 35.5601 39.8949 35.4259 39.8346 35.2825C39.8168 35.2403 39.7989 35.1993 39.7813 35.1602C38.5103 34.2887 35.9788 33.0607 33.7095 32.5189C30.9875 31.8691 27.6413 31.4783 24 31.4783C20.3587 31.4783 17.0125 31.8691 14.2905 32.5189C12.0012 33.0654 9.44505 34.3104 8.18538 35.1832C8.17384 35.2075 8.16216 35.233 8.15052 35.2592C8.09919 35.3751 8.05721 35.4886 8.02977 35.589C8.00356 35.6848 8.00039 35.7333 8.00004 35.7388C8.00004 35.739 8 35.7393 8.00004 35.7388C8.00004 35.7641 8.0104 36.0767 8.68485 36.6314C9.34546 37.1746 10.4222 37.7531 11.9291 38.2772C14.9242 39.319 19.1919 40 24 40C28.8081 40 33.0758 39.319 36.0709 38.2772C37.5778 37.7531 38.6545 37.1746 39.3151 36.6314C39.9006 36.1499 39.9857 35.8511 39.998 35.764ZM4.95178 32.7688L21.4543 6.30267C22.6288 4.4191 25.3712 4.41909 26.5457 6.30267L43.0534 32.777C43.0709 32.8052 43.0878 32.8338 43.104 32.8629L41.3563 33.8352C43.104 32.8629 43.1038 32.8626 43.104 32.8629L43.1051 32.865L43.1065 32.8675L43.1101 32.8739L43.1199 32.8918C43.1276 32.906 43.1377 32.9246 43.1497 32.9473C43.1738 32.9925 43.2062 33.0545 43.244 33.1299C43.319 33.2792 43.4196 33.489 43.5217 33.7317C43.6901 34.1321 44 34.9311 44 35.7391C44 37.4427 43.003 38.7775 41.8558 39.7209C40.6947 40.6757 39.1354 41.4464 37.385 42.0552C33.8654 43.2794 29.133 44 24 44C18.867 44 14.1346 43.2794 10.615 42.0552C8.86463 41.4464 7.30529 40.6757 6.14419 39.7209C4.99695 38.7775 3.99999 37.4427 3.99999 35.7391C3.99999 34.8725 4.29264 34.0922 4.49321 33.6393C4.60375 33.3898 4.71348 33.1804 4.79687 33.0311C4.83898 32.9556 4.87547 32.8935 4.9035 32.8471C4.91754 32.8238 4.92954 32.8043 4.93916 32.7889L4.94662 32.777L4.95178 32.7688ZM35.9868 29.004L24 9.77997L12.0131 29.004C12.4661 28.8609 12.9179 28.7342 13.3617 28.6282C16.4281 27.8961 20.0901 27.4783 24 27.4783C27.9099 27.4783 31.5719 27.8961 34.6383 28.6282C35.082 28.7342 35.5339 28.8609 35.9868 29.004Z" fill="currentColor" fillRule="evenodd"></path>
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold">Pequenos Discípulos</h2>
-          <p className="text-[#61896b]">Bem-vindo de volta!</p>
-        </div>
+    <div className="min-h-screen bg-pergaminho textura-pergaminho flex">
+      <div className="hidden lg:flex flex-1 flex-col justify-center px-12 xl:px-20 bg-vida/5 border-r border-borda animate-fade-in">
+        <p className="text-oliva text-sm font-semibold uppercase tracking-widest mb-6">
+          Uma história por noite
+        </p>
+        <h1 className="font-display text-4xl xl:text-5xl font-bold text-tinta leading-tight mb-6 max-w-md">
+          Continue a jornada de fé do seu pequeno
+        </h1>
+        <p className="text-oliva text-lg leading-relaxed max-w-sm mb-10">
+          Histórias bíblicas adaptadas à idade, ao tom e ao momento de leitura da sua família.
+        </p>
+        <blockquote className="font-story text-xl text-tinta/80 border-l-4 border-dourado pl-4 max-w-sm italic">
+          &ldquo;Instrui a criança no caminho em que deve andar.&rdquo;
+          <footer className="text-oliva text-sm not-italic mt-2">— Provérbios 22:6</footer>
+        </blockquote>
+      </div>
 
-        <form className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">E-mail</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border-[#dbe6de] focus:border-primary focus:ring-primary"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Senha</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border-[#dbe6de] focus:border-primary focus:ring-primary"
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-2 pt-2">
-            <button
-              onClick={handleSignIn}
-              disabled={loading}
-              className="w-full py-3 bg-primary text-[#102215] font-bold rounded-lg hover:brightness-95 transition-all"
+      <div className="flex-1 flex items-center justify-center p-6 md:p-10">
+        <div className="max-w-md w-full animate-slide-in-right">
+          <div className="mb-8">
+            <Link
+              href="/"
+              className="inline-block mb-8 focus:outline-none focus-visible:ring-2 focus-visible:ring-vida rounded"
             >
-              {loading ? 'Entrando...' : 'Entrar'}
-            </button>
-            <button
-              onClick={handleSignUp}
-              disabled={loading}
-              className="w-full py-3 border-2 border-primary text-primary font-bold rounded-lg hover:bg-primary/5 transition-all"
-            >
-              Criar Conta
-            </button>
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-[#dbe6de]"></span>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-[#61896b]">Ou</span>
-              </div>
+              <Logo size="lg" />
+            </Link>
+            <h2 className="font-display text-2xl font-bold text-tinta mb-1">Entrar</h2>
+            <p className="text-oliva">Modo local — autenticação real chega depois</p>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-tinta mb-1.5">
+                E-mail
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full h-12 rounded-livro border-borda bg-white text-tinta px-4 focus:border-vida focus:ring-vida"
+                required
+                autoComplete="email"
+              />
             </div>
-            <button
-              type="button"
-              onClick={() => router.push('/onboarding/step-1')}
-              className="w-full py-3 border-2 border-dashed border-[#61896b] text-[#61896b] font-bold rounded-lg hover:bg-[#61896b]/5 transition-all"
-            >
-              Acessar em Modo de Desenvolvimento
-            </button>
-          </div>
-        </form>
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-tinta mb-1.5">
+                Senha
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-12 rounded-livro border-borda bg-white text-tinta px-4 focus:border-vida focus:ring-vida"
+                required
+                autoComplete="current-password"
+              />
+            </div>
 
-        {message && (
-          <p className="mt-4 text-center text-sm font-medium text-red-500">
-            {message}
-          </p>
-        )}
+            <div className="flex flex-col gap-3 pt-2">
+              <PrimaryButton type="submit" disabled={loading} fullWidth>
+                {loading ? 'Entrando...' : 'Entrar'}
+              </PrimaryButton>
+              <SecondaryButton type="button" onClick={continueAsDev} disabled={loading} fullWidth>
+                Criar conta (dev)
+              </SecondaryButton>
+
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-borda" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-pergaminho px-2 text-oliva">ou</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={continueAsDev}
+                className="w-full py-2.5 text-xs text-oliva/60 hover:text-oliva transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-vida rounded"
+              >
+                Acessar em modo de desenvolvimento
+              </button>
+            </div>
+          </form>
+
+          {message && (
+            <p role="alert" className="mt-4 text-center text-sm font-medium text-red-600">
+              {message}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

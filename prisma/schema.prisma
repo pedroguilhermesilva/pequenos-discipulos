@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionTier {
+  free
+  premium
+  family
+}
+
+enum AgeTier {
+  TIER_3_5
+  TIER_6_8
+  TIER_9_11
+}
+
+enum ContentType {
+  text
+  audio
+  video
+}
+
+enum AdaptationStatus {
+  draft
+  family_approved
+  community
+  as_default
+}
+
+model User {
+  id               String           @id
+  email            String?          @unique
+  fullName         String?
+  subscriptionTier SubscriptionTier @default(free)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  childProfiles ChildProfile[]
+  userStories   UserStory[]
+  collections   Collection[]
+  usageEvents   UsageEvent[]
+  votes         AdaptationVote[]
+}
+
+model ChildProfile {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  avatarColor     String
+  preferences     Json
+  hasCreatedStory Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userStories UserStory[]
+  collections Collection[]
+
+  @@index([userId])
+}
+
+model Passage {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  reference  String
+  book       String
+  preview    String
+  sourceText Json
+  createdAt  DateTime @default(now())
+
+  adaptations PassageAdaptation[]
+}
+
+model PassageAdaptation {
+  id             String           @id @default(cuid())
+  passageId      String
+  bibleVersionId String
+  verseFrom      Int
+  verseTo        Int
+  ageTier        AgeTier
+  languageStyle  String
+  contentType    ContentType
+  content        Json
+  quiz           Json?
+  adaptationNote String?
+  status         AdaptationStatus @default(draft)
+  version        Int              @default(1)
+  voteScore      Float            @default(0)
+  voteCount      Int              @default(0)
+  title          String
+  imageUrl       String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  passage     Passage      @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  userStories UserStory[]
+  audioAssets AudioAsset[]
+  votes       AdaptationVote[]
+
+  @@unique([passageId, bibleVersionId, verseFrom, verseTo, ageTier, languageStyle, contentType, version])
+  @@index([passageId, ageTier, contentType, status])
+  @@index([status, voteScore])
+}
+
+model UserStory {
+  id             String   @id @default(cuid())
+  userId         String
+  childProfileId String?
+  adaptationId   String
+  isFavorite     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  childProfile    ChildProfile?     @relation(fields: [childProfileId], references: [id])
+  adaptation      PassageAdaptation @relation(fields: [adaptationId], references: [id])
+  progress        ReadingProgress?
+  collectionItems CollectionItem[]
+
+  @@index([userId, isFavorite])
+  @@index([childProfileId])
+  @@index([adaptationId])
+}
+
+model ReadingProgress {
+  id          String   @id @default(cuid())
+  userStoryId String   @unique
+  currentPage Int      @default(1)
+  totalPages  Int
+  lastReadAt  DateTime @updatedAt
+
+  userStory UserStory @relation(fields: [userStoryId], references: [id], onDelete: Cascade)
+}
+
+model Collection {
+  id             String   @id @default(cuid())
+  userId         String
+  childProfileId String
+  title          String
+  isLocked       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  childProfile ChildProfile @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
+  items        CollectionItem[]
+
+  @@index([userId, childProfileId])
+}
+
+model CollectionItem {
+  id            String    @id @default(cuid())
+  collectionId  String
+  userStoryId   String
+  position      Int
+  scheduledDate DateTime?
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  userStory  UserStory  @relation(fields: [userStoryId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, position])
+}
+
+model AdaptationVote {
+  id           String   @id @default(cuid())
+  userId       String
+  adaptationId String
+  value        Int
+  createdAt    DateTime @default(now())
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adaptation PassageAdaptation @relation(fields: [adaptationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, adaptationId])
+}
+
+model AudioAsset {
+  id           String  @id @default(cuid())
+  adaptationId String
+  blockKey     String
+  filePath     String
+  durationMs   Int?
+
+  adaptation PassageAdaptation @relation(fields: [adaptationId], references: [id], onDelete: Cascade)
+
+  @@unique([adaptationId, blockKey])
+}
+
+model UsageEvent {
+  id          String      @id @default(cuid())
+  userId      String
+  contentType ContentType
+  month       String
+  count       Int         @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentType, month])
+}
