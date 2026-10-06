@@ -1,15 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { LlmValidationError } from '@/lib/domain/errors';
 import { assertPedagogicalStructure } from '@/lib/llm/validate-pedagogical-story';
-import type { PedagogicalStoryResponse } from '@/lib/llm/pedagogical-story.schema';
+import { buildSamplePedagogicalStory } from '@/lib/llm/test-fixtures';
 
-const validStory: PedagogicalStoryResponse = {
-  metadata: {
-    livro: 'Mateus',
-    capitulo: 14,
-    versiculo: '24-27',
-    idade_alvo: 5,
-  },
+const validStory = buildSamplePedagogicalStory({
   conteudo_estruturado: [
     { tipo: 'texto', conteudo: 'Os amigos de Jesus estavam em um barco.' },
     {
@@ -20,7 +14,7 @@ const validStory: PedagogicalStoryResponse = {
     },
     { tipo: 'texto', conteudo: 'Jesus disse para não terem medo.' },
   ],
-};
+});
 
 describe('assertPedagogicalStructure', () => {
   it('accepts alternating texto and interativo blocks', () => {

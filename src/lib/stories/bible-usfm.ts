@@ -1,4 +1,4 @@
-/** Maps internal book slugs to YouVersion USFM book codes. */
+/** Maps internal book slugs to USFM book codes. */
 export const BOOK_TO_USFM: Record<string, string> = {
   genesis: 'GEN',
   exodo: 'EXO',

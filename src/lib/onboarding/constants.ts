@@ -6,12 +6,16 @@ import type {
   ThemeId,
   UsageFrequencyId,
 } from './types';
+import { ageTiers } from '@/lib/stories/age-tiers';
+import { bibleVersions, getBibleVersionLabel } from '@/lib/stories/bible-versions';
 
-export const ageGroups: { id: AgeGroupId; label: string; icon: string }[] = [
-  { id: '1-2', label: '1–2 anos', icon: 'child_care' },
-  { id: '3-4', label: '3–4 anos', icon: 'toys' },
-  { id: '5+', label: '5+ anos', icon: 'rocket_launch' },
-];
+export const ageGroups: { id: AgeGroupId; label: string; icon: string }[] = ageTiers.map(
+  (tier) => ({
+    id: tier.id,
+    label: tier.label,
+    icon: tier.id === '3-5' ? 'child_care' : tier.id === '6-8' ? 'toys' : 'rocket_launch',
+  })
+);
 
 export const themes: { id: ThemeId; label: string }[] = [
   { id: 'animals', label: 'Animais' },
@@ -28,15 +32,10 @@ export const languageStyles: {
   sublabel?: string;
   icon: string;
 }[] = [
-  { id: 'simple', label: 'Muito simples', sublabel: '(1–2 anos)', icon: 'child_care' },
+  { id: 'simple', label: 'Muito simples', sublabel: '(3–5 anos)', icon: 'child_care' },
   { id: 'rhymes', label: 'Com rimas', icon: 'music_note' },
   { id: 'adventure', label: 'Aventuresco', icon: 'explore' },
 ];
-
-import {
-  bibleVersions,
-  getBibleVersionLabel,
-} from '@/lib/stories/bible-versions';
 
 export { bibleVersions, getBibleVersionLabel };
 

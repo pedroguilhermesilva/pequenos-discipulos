@@ -1,14 +1,12 @@
 import { prisma } from '@/lib/db/prisma';
-import { FallbackBibleTextProvider } from '@/lib/providers/fallback-bible-text.provider';
 import { LocalStorageProvider } from '@/lib/providers/local/local-storage.provider';
-import { StubBibleTextProvider } from '@/lib/providers/stubs/stub-bible-text.provider';
+import { LocalBibleTextProvider } from '@/lib/providers/local/local-bible-text.provider';
 import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
 import { ElevenLabsTtsProvider } from '@/lib/providers/elevenlabs/elevenlabs-tts.provider';
 import { StubSfxProvider } from '@/lib/providers/stubs/stub-sfx.provider';
 import { StubTtsProvider } from '@/lib/providers/stubs/stub-tts.provider';
-import { YouVersionBibleProvider } from '@/lib/providers/youversion/youversion-bible.provider';
 import { PrismaAdaptationRepository } from '@/lib/repositories/prisma/prisma-adaptation.repository';
 import { PrismaChildProfileRepository } from '@/lib/repositories/prisma/prisma-child-profile.repository';
 import { PrismaCollectionRepository } from '@/lib/repositories/prisma/prisma-collection.repository';
@@ -21,6 +19,7 @@ import { FavoritesService } from '@/lib/services/favorites.service';
 import { LibraryService } from '@/lib/services/library.service';
 import { PlanLimitsService } from '@/lib/services/plan-limits.service';
 import { QuizService } from '@/lib/services/quiz.service';
+import { StoryCacheService } from '@/lib/services/story-cache.service';
 import { StoryGenerationService } from '@/lib/services/story-generation.service';
 import { VoteService } from '@/lib/services/vote.service';
 import { AudioService } from '@/lib/services/audio.service';
@@ -32,25 +31,7 @@ const collectionRepo = new PrismaCollectionRepository(prisma);
 const usageRepo = new PrismaUsageRepository(prisma);
 const voteRepo = new PrismaVoteRepository(prisma);
 
-const yvpKey = process.env.YVP_APP_KEY?.trim() ?? '';
-const useStubOnly = process.env.YVP_USE_STUB === 'true' || !yvpKey;
-
-const stubBibleProvider = new StubBibleTextProvider();
-const bibleProvider =
-  yvpKey && !useStubOnly
-    ? new FallbackBibleTextProvider(
-        new YouVersionBibleProvider(yvpKey),
-        stubBibleProvider,
-        (error, params) => {
-          if (process.env.NODE_ENV === 'development') {
-            const detail = error instanceof Error ? error.message : String(error);
-            console.warn(
-              `[BibleText] YouVersion indisponível para ${params.bibleVersionId} — usando texto local. ${detail}`
-            );
-          }
-        }
-      )
-    : stubBibleProvider;
+const bibleProvider = new LocalBibleTextProvider();
 
 const llmKey = process.env.LLM_API_KEY?.trim() ?? '';
 const llmBaseUrl = process.env.LLM_BASE_URL?.trim() || 'https://api.openai.com/v1';
@@ -65,6 +46,7 @@ const llmProvider = useLlmStub
       model: llmModel,
       providerName: 'LLM',
     });
+
 const elevenKey = process.env.ELEVENLABS_API_KEY?.trim() ?? '';
 const elevenBaseUrl =
   process.env.ELEVENLABS_BASE_URL?.trim() || 'https://api.elevenlabs.io/v1';
@@ -98,6 +80,7 @@ const storageProvider = new LocalStorageProvider();
 const bibleTextService = new BibleTextService(bibleProvider);
 const planLimitsService = new PlanLimitsService(usageRepo, childProfileRepo);
 const audioService = new AudioService(prisma, ttsProvider, sfxProvider, storageProvider);
+const storyCacheService = new StoryCacheService(prisma);
 
 export const container = {
   prisma,
@@ -119,6 +102,7 @@ export const container = {
   services: {
     bibleText: bibleTextService,
     planLimits: planLimitsService,
+    storyCache: storyCacheService,
     storyGeneration: new StoryGenerationService(
       prisma,
       adaptationRepo,
@@ -128,7 +112,8 @@ export const container = {
       planLimitsService,
       bibleTextService,
       llmProvider,
-      audioService
+      audioService,
+      storyCacheService
     ),
     library: new LibraryService(adaptationRepo, userStoryRepo),
     favorites: new FavoritesService(userStoryRepo),

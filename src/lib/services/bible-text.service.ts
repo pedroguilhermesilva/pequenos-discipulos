@@ -2,7 +2,7 @@ import { BibleTextFetchError } from '@/lib/domain/errors';
 import type { BibleTextProvider } from '@/lib/providers/interfaces/bible-text.provider';
 import { getBookMeta } from '@/lib/stories/bible-metadata';
 import { toUsfmBookCode } from '@/lib/stories/bible-usfm';
-import { resolveYouVersionBibleId } from '@/lib/stories/bible-versions';
+import { resolveBibleVersionId } from '@/lib/stories/bible-versions';
 
 export class BibleTextService {
   constructor(private readonly provider: BibleTextProvider) {}
@@ -20,7 +20,7 @@ export class BibleTextService {
     }
 
     return this.provider.fetchPassage({
-      bibleVersionId: resolveYouVersionBibleId(input.bibleVersionId),
+      bibleVersionId: resolveBibleVersionId(input.bibleVersionId),
       bookCode: toUsfmBookCode(input.bookId),
       chapter: input.chapter,
       verseFrom: input.verseFrom,

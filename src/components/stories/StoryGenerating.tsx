@@ -22,7 +22,9 @@ function generationRequestKey(
   verseTo: number,
   contentType: ContentType,
   ageTier: AgeTier,
-  prefs: UserPreferences
+  prefs: UserPreferences,
+  mode: 'initial' | 'regenerate',
+  currentAdaptationId?: string
 ) {
   return [
     passageSlug,
@@ -32,6 +34,8 @@ function generationRequestKey(
     ageTier,
     prefs.bibleVersionId,
     prefs.languageStyle,
+    mode,
+    currentAdaptationId ?? '',
   ].join('|');
 }
 
@@ -42,6 +46,9 @@ interface StoryGeneratingProps {
   verseFrom: number;
   verseTo: number;
   preferences?: UserPreferences | null;
+  childProfileId?: string;
+  mode?: 'initial' | 'regenerate';
+  currentAdaptationId?: string;
   onComplete: (result: { userStoryId: string; adaptationId: string; title: string }) => void;
   onError?: (message: string) => void;
 }
@@ -53,6 +60,9 @@ export function StoryGenerating({
   verseFrom,
   verseTo,
   preferences,
+  childProfileId,
+  mode = 'initial',
+  currentAdaptationId,
   onComplete,
   onError,
 }: StoryGeneratingProps) {
@@ -72,7 +82,9 @@ export function StoryGenerating({
           verseTo,
           contentType,
           ageTier,
-          prefs
+          prefs,
+          mode,
+          currentAdaptationId
         );
         let pending = inFlightGenerations.get(requestKey);
         if (!pending) {
@@ -87,6 +99,9 @@ export function StoryGenerating({
               ageTier,
               languageStyle: prefs.languageStyle,
               contentType,
+              childProfileId,
+              mode,
+              currentAdaptationId,
             }),
           })
             .then((response) => response.json() as Promise<GenerationApiResult>)
@@ -121,7 +136,10 @@ export function StoryGenerating({
       cancelled = true;
     };
   }, [
+    childProfileId,
     contentType,
+    currentAdaptationId,
+    mode,
     onComplete,
     onError,
     passageSlug,
@@ -145,11 +163,20 @@ export function StoryGenerating({
       </div>
 
       <h2 className="font-display text-2xl md:text-3xl font-bold text-tinta mb-3">
-        {error ? 'Não foi possível criar' : 'Criando sua história...'}
+        {error
+          ? 'Não foi possível criar'
+          : mode === 'regenerate'
+            ? 'Gerando nova versão...'
+            : 'Criando sua história...'}
       </h2>
       <p className="text-oliva text-lg max-w-md mb-6">
         {error ? (
           error
+        ) : mode === 'regenerate' ? (
+          <>
+            Buscando outra adaptação de <strong className="text-tinta">{storyTitle}</strong> antes de
+            chamar a IA — mesma experiência de espera, versão diferente.
+          </>
         ) : (
           <>
             Adaptando <strong className="text-tinta">{storyTitle}</strong> em formato{' '}

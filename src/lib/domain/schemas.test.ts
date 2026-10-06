@@ -35,7 +35,7 @@ describe('domain schemas', () => {
   it('requires bibleVersionId in preferences', () => {
     const parsed = userPreferencesSchema.safeParse({
       childName: 'Davi',
-      ageGroup: '3-4',
+      ageGroup: '3-5',
       themes: ['stars'],
       languageStyle: 'rhymes',
       readingGoal: 'bedtime',

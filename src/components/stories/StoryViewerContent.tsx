@@ -17,7 +17,6 @@ import type { UserPreferences } from '@/lib/onboarding/types';
 import { getAgeTierFromPreferences, getAgeTierLabel } from '@/lib/stories/age-tiers';
 import { getStoryQuiz } from '@/lib/stories/story-quiz';
 import { getBiblePassageTextAction } from '@/lib/stories/bible-text-actions';
-import { isStubVerseText } from '@/lib/providers/stubs/stub-bible-text.provider';
 import { getAdaptationContentAction } from '@/lib/stories/library-actions';
 import type { AdaptationContent, StoryQuizData } from '@/lib/domain/schemas';
 import { cn } from '@/lib/cn';
@@ -40,6 +39,7 @@ interface StoryViewerContentProps {
   userStoryId?: string;
   initialSourceVerses?: BibleVerseLine[];
   onBack: () => void;
+  onRegenerate?: () => void;
 }
 
 export function StoryViewerContent({
@@ -51,6 +51,7 @@ export function StoryViewerContent({
   userStoryId: _userStoryId,
   initialSourceVerses,
   onBack,
+  onRegenerate,
 }: StoryViewerContentProps) {
   const [passageDialogOpen, setPassageDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(story.currentPage ?? 1);
@@ -129,11 +130,8 @@ export function StoryViewerContent({
 
         if (cancelled) return;
 
-        if (result.ok && result.data) {
-          const verses = result.data.verses.filter((verse) => !isStubVerseText(verse.text));
-          if (verses.length > 0) {
-            setSourceVerses(verses);
-          }
+        if (result.ok && result.data?.verses.length) {
+          setSourceVerses(result.data.verses);
         }
       } finally {
         if (!cancelled) setSourceLoading(false);
@@ -290,7 +288,6 @@ export function StoryViewerContent({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           adaptationId,
-          parentUnlocked: true,
           action,
           value: 1,
         }),
@@ -460,6 +457,16 @@ export function StoryViewerContent({
               </button>
 
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {onRegenerate && adaptationId && (
+                  <button
+                    type="button"
+                    onClick={onRegenerate}
+                    className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-vida bg-vida/10 hover:bg-vida/15 border border-vida/25 px-3 py-2.5 rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-vida"
+                  >
+                    <span className="material-symbols-outlined text-base">autorenew</span>
+                    Gerar novamente
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => openParentGate('parents')}

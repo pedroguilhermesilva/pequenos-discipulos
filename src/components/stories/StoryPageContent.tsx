@@ -15,16 +15,26 @@ import {
   type BibleVerseLine,
 } from '@/lib/stories/bible-passages';
 import { createNewStoryPlaceholder, getNewStoryEntryHref, isNewStoryId } from '@/lib/stories/new-story';
-import { getActiveProfile, markProfileHasCreatedStory } from '@/lib/profiles/storage';
+import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
+import { markProfileHasCreatedStory } from '@/lib/profiles/storage';
 import { getUserStoryAction } from '@/lib/stories/library-actions';
 import { buildStoryUrl, parseStorySearchParams } from '@/lib/stories/story-url';
 import type { ContentType } from '@/lib/stories/types';
 import Link from 'next/link';
 
 export function StoryPageContent() {
+  return (
+    <AppShell>
+      <StoryPageInner />
+    </AppShell>
+  );
+}
+
+function StoryPageInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { activeProfile } = useChildProfiles();
   const storyId = params.id as string;
 
   const isNewStory = isNewStoryId(storyId);
@@ -43,10 +53,9 @@ export function StoryPageContent() {
   const [dbSourceVerses, setDbSourceVerses] = useState<BibleVerseLine[]>([]);
 
   useEffect(() => {
-    if (!isNewStory) return;
-    const active = getActiveProfile();
-    if (active) setNewStory(createNewStoryPlaceholder(active.preferences));
-  }, [isNewStory]);
+    if (!isNewStory || !activeProfile) return;
+    setNewStory(createNewStoryPlaceholder(activeProfile.preferences));
+  }, [activeProfile, isNewStory]);
 
   useEffect(() => {
     if (isNewStory) {
@@ -101,6 +110,7 @@ export function StoryPageContent() {
   const skipGeneration = Boolean(ready || hasExistingProgress || (!isNewStory && story && passageId && contentType));
 
   const [generationComplete, setGenerationComplete] = useState(skipGeneration);
+  const [generationMode, setGenerationMode] = useState<'initial' | 'regenerate'>('initial');
 
   useEffect(() => {
     setGenerationComplete(skipGeneration);
@@ -109,13 +119,13 @@ export function StoryPageContent() {
   const handleGenerationComplete = useCallback(
     (result: { userStoryId: string; adaptationId: string; title: string }) => {
       setGenerationComplete(true);
+      setGenerationMode('initial');
       setResolvedStoryId(result.userStoryId);
       setAdaptationId(result.adaptationId);
       setNewStory((prev) => ({ ...prev, id: result.userStoryId, title: result.title }));
 
-      const active = getActiveProfile();
-      if (active && !active.hasCreatedStory) {
-        markProfileHasCreatedStory(active.id);
+      if (activeProfile && !activeProfile.hasCreatedStory) {
+        markProfileHasCreatedStory(activeProfile.id);
       }
 
       router.replace(
@@ -128,8 +138,13 @@ export function StoryPageContent() {
         })
       );
     },
-    [contentType, passageId, passageRange, router]
+    [activeProfile, contentType, passageId, passageRange, router]
   );
+
+  const handleRegenerate = useCallback(() => {
+    setGenerationMode('regenerate');
+    setGenerationComplete(false);
+  }, []);
 
   const handleViewerBack = useCallback(() => {
     const id = resolvedStoryId ?? storyId;
@@ -146,41 +161,36 @@ export function StoryPageContent() {
 
   if (dbLoading) {
     return (
-      <AppShell>
-        <div className="min-h-[40vh] flex items-center justify-center">
-          <div className="w-10 h-10 rounded-full border-2 border-vida/20 border-t-vida animate-spin" />
-        </div>
-      </AppShell>
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-2 border-vida/20 border-t-vida animate-spin" />
+      </div>
     );
   }
 
   if (!story) {
     return (
-      <AppShell>
-        <div className="text-center py-20 animate-fade-in">
-          <span className="material-symbols-outlined text-oliva text-5xl mb-4">search_off</span>
-          <h1 className="font-display text-2xl font-bold text-tinta mb-2">História não encontrada</h1>
-          <p className="text-oliva mb-6">Esta história não existe na biblioteca.</p>
-          <Link
-            href="/biblioteca"
-            className="inline-flex items-center gap-2 text-vida font-semibold hover:text-vida-dark transition-colors"
-          >
-            <span className="material-symbols-outlined">arrow_back</span>
-            Voltar à biblioteca
-          </Link>
-        </div>
-      </AppShell>
+      <div className="text-center py-20 animate-fade-in">
+        <span className="material-symbols-outlined text-oliva text-5xl mb-4">search_off</span>
+        <h1 className="font-display text-2xl font-bold text-tinta mb-2">História não encontrada</h1>
+        <p className="text-oliva mb-6">Esta história não existe na biblioteca.</p>
+        <Link
+          href="/biblioteca"
+          className="inline-flex items-center gap-2 text-vida font-semibold hover:text-vida-dark transition-colors"
+        >
+          <span className="material-symbols-outlined">arrow_back</span>
+          Voltar à biblioteca
+        </Link>
+      </div>
     );
   }
 
   const suggestedPassageId = isNewStory ? undefined : getPassageIdFromReference(story.passage);
-  const activeProfile = getActiveProfile();
   const backHref = isNewStory
     ? getNewStoryEntryHref(activeProfile?.hasCreatedStory)
     : '/biblioteca';
 
   return (
-    <AppShell>
+    <>
       {!passageId && (
         <PassageSelection
           storyId={storyId}
@@ -206,6 +216,9 @@ export function StoryPageContent() {
           verseFrom={passageRange.verseFrom}
           verseTo={passageRange.verseTo}
           preferences={activeProfile?.preferences}
+          childProfileId={activeProfile?.id}
+          mode={generationMode}
+          currentAdaptationId={adaptationId ?? undefined}
           onComplete={handleGenerationComplete}
         />
       )}
@@ -220,6 +233,7 @@ export function StoryPageContent() {
           userStoryId={resolvedStoryId ?? story.id}
           initialSourceVerses={dbSourceVerses.length > 0 ? dbSourceVerses : undefined}
           onBack={handleViewerBack}
+          onRegenerate={handleRegenerate}
         />
       )}
 
@@ -236,6 +250,6 @@ export function StoryPageContent() {
           </Link>
         </div>
       )}
-    </AppShell>
+    </>
   );
 }

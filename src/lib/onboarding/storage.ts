@@ -1,6 +1,7 @@
 import { getActiveProfile, updateProfile } from '@/lib/profiles/storage';
 import { DEFAULT_PREFERENCES } from './defaults';
 import type { UserPreferences } from './types';
+import { migrateAgeGroup } from '@/lib/stories/age-tiers';
 
 export const PREFERENCES_STORAGE_KEY = 'pequenos-discipulos-preferences';
 
@@ -12,7 +13,7 @@ export function parsePreferences(raw: unknown): UserPreferences | null {
 
   return {
     childName: data.childName ?? DEFAULT_PREFERENCES.childName,
-    ageGroup: data.ageGroup,
+    ageGroup: migrateAgeGroup(String(data.ageGroup)),
     themes: data.themes,
     languageStyle: data.languageStyle ?? DEFAULT_PREFERENCES.languageStyle,
     readingGoal: data.readingGoal ?? DEFAULT_PREFERENCES.readingGoal,
@@ -57,5 +58,6 @@ export function mergePreferences(
     ...base,
     ...partial,
     themes: partial.themes ?? base.themes,
+    ageGroup: partial.ageGroup ? migrateAgeGroup(partial.ageGroup) : base.ageGroup,
   };
 }

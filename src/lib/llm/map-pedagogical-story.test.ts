@@ -1,16 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { mapPedagogicalStoryToContent } from '@/lib/llm/map-pedagogical-story';
-import type { PedagogicalStoryResponse } from '@/lib/llm/pedagogical-story.schema';
+import { buildSamplePedagogicalStory } from '@/lib/llm/test-fixtures';
 
 describe('mapPedagogicalStoryToContent', () => {
   it('keeps interleaved blocks in reading order on the same page', () => {
-    const response: PedagogicalStoryResponse = {
-      metadata: {
-        livro: 'Mateus',
-        capitulo: 14,
-        versiculo: '24-27',
-        idade_alvo: 5,
-      },
+    const response = buildSamplePedagogicalStory({
       conteudo_estruturado: [
         { tipo: 'texto', conteudo: 'Trecho 1.' },
         {
@@ -27,7 +21,7 @@ describe('mapPedagogicalStoryToContent', () => {
           tag_som: 'fala_jesus_coragem',
         },
       ],
-    };
+    });
 
     const content = mapPedagogicalStoryToContent(response);
 
