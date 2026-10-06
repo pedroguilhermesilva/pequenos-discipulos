@@ -10,10 +10,11 @@ description: >-
   (8) enumeração de e-mails no login; (9) headers de segurança (CSP, etc.);
   (10) open redirect em callbackUrl/redirectTo; (11) rate limit no login e
   em writes públicos. Usar em revisões de código, PRs, auditorias de
-  segurança, features novas com Prisma/rotas/actions/uploads/auth/login/
-  next.config, e quando o utilizador mencionar RLS, IDOR, secrets, CSRF,
-  SSRF, CSP, enumeração, open redirect, rate limit, autorização, validação
-  ou estas falhas.
+  segurança, features novas com Prisma/Neon, NextAuth, serviços em
+  src/lib/services/, rotas app/api, geração de histórias, votos, parent gate,
+  áudio/TTS, auth/login, next.config, proxy.ts, e quando o utilizador
+  mencionar RLS, IDOR, secrets, CSRF, SSRF, CSP, enumeração, open redirect,
+  rate limit, autorização, validação ou estas falhas.
 ---
 
 # Revisor das falhas comuns (app gerada por IA)
@@ -36,28 +37,41 @@ Não alargar a um security review genérico. Só estas 11, a menos que o utiliza
 
 Não corrigir código a menos que o utilizador peça explicitamente o fix a seguir.
 
+## Arquitetura deste repo (contexto)
+
+- **BD:** PostgreSQL (Neon) via Prisma — `prisma/schema.prisma`, `DATABASE_URL` + `DIRECT_URL`.
+- **Auth:** NextAuth (Auth.js) em `src/auth.ts`; sessão JWT; helpers em `src/lib/auth/get-current-user.ts` (`requireCurrentUser`, `getCurrentUserId`, cookie `active_child_profile_id`).
+- **Conta vs perfis:** `User` = pais; `ChildProfile.userId` = dono; histórias em `UserStory` com `userId` + `childProfileId`.
+- **Lógica de negócio:** `src/lib/services/` (não existe `src/use-cases/`).
+- **Dados:** `src/lib/repositories/`; wiring em `src/lib/container.ts`.
+- **Entrada/saída:** Server Actions (`src/lib/**/actions.ts`) e Route Handlers (`src/app/api/**/route.ts`).
+- **Domínio partilhado:** Zod em `src/lib/domain/schemas.ts`.
+- **Proteção de rotas:** `src/proxy.ts` (redirect para `/login` se sem sessão).
+- **Áreas sensíveis:** geração/cache (`StoryGenerationService`, `StoryCacheService`), votos (`VoteService` + parent gate), áudio (`AudioService`, ElevenLabs/local stub).
+
 ## Quando aplicar
 
 Aplicar automaticamente quando:
 
 - o utilizador pede revisão, auditoria, PR review, code review, ou estas falhas
-- há mudanças em `prisma/`, `src/use-cases/`, `app/**/actions.ts`, `app/api/`, uploads, env, auth, login, `next.config.ts`, `proxy.ts`, `vercel.json`
-- o pedido envolve RLS, IDOR, secrets, API keys, autorização, validação, CSRF, SSRF, CSP, headers, enumeração de e-mails, open redirect, callbackUrl ou rate limit
+- há mudanças em `prisma/`, `src/lib/services/`, `src/lib/repositories/`, `src/lib/**/actions.ts`, `src/app/api/`, env, auth, login, `next.config.ts`, `src/proxy.ts`
+- o pedido envolve RLS, IDOR, secrets, API keys, autorização, validação, CSRF, SSRF, CSP, headers, enumeração de e-mails, open redirect, callbackUrl, parent gate, rate limit ou geração de histórias
 
 Não aplicar em copy de UI, descrições Asana, ou refactors sem impacto em dados/auth/input/headers.
 
 ## Âmbito
 
 1. Se o utilizador indicar ficheiros/PR/branch → esse âmbito.
-2. Se for revisão de PR / “o que mudou” → diff vs base (`origin/dev` ou `main`).
+2. Se for revisão de PR / “o que mudou” → diff vs base (`feat/prisma-layered-architecture`, `main` ou branch indicada).
 3. Caso contrário (auditoria / “todo o projeto”) → repositório completo, priorizando:
    - `prisma/schema.prisma` e `prisma/migrations/`
-   - `src/use-cases/` (lógica de negócio — **fonte de verdade**)
-   - `app/**/actions.ts`, `app/api/**`, páginas com `params.id`
-   - `src/lib/auth.ts`, `app/(auth)/login/`, `src/lib/rate-limit.ts`
-   - `next.config.ts`, `proxy.ts`, `vercel.json`
-   - `src/components/**` (falhas 2, 5, 7)
-   - `.env*`, `src/lib/`, código cliente (`"use client"`)
+   - `src/lib/services/` (lógica de negócio — **fonte de verdade**)
+   - `src/lib/repositories/`, `src/lib/container.ts`
+   - `src/lib/**/actions.ts`, `src/app/api/**`, páginas com `params.id`
+   - `src/auth.ts`, `src/lib/auth/`, `src/app/login/`, `src/lib/rate-limit.ts`
+   - `next.config.ts`, `src/proxy.ts`
+   - `src/components/**` (falhas 2, 5, 7 — especialmente `ParentGateModal`, `StoryViewerContent`)
+   - `.env*`, código cliente (`"use client"`)
 
 ## Relatório (obrigatório)
 
@@ -74,332 +88,328 @@ Depois da tabela: 3–6 frases com os piores riscos e o que verificar a seguir. 
 
 ## 1. Tabelas sem RLS
 
-Neste repo a BD é **PostgreSQL (Neon) via Prisma**. Não há Supabase client. Isolamento actual = `tenantId` (ou FK para entidade do tenant) **nas queries da app**. Isso **não substitui RLS** no Postgres: um `findUnique({ where: { id } })` fura o isolamento.
+Neste repo a BD é **PostgreSQL (Neon) via Prisma**. Não há Supabase client. Isolamento actual = **`userId`** (conta dos pais) e, quando aplicável, **`childProfileId`** (perfil da criança) **nas queries da app**. Isso **não substitui RLS** no Postgres: um `findUnique({ where: { id } })` fura o isolamento.
 
 **Passa**
 
-- Modelo tenant-scoped tem `tenantId` **ou** FK obrigatória para pai com `tenantId` (ex.: `Booking` → `Restaurant`).
-- Migrations com `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY` alinhadas com `tenantId` / dono (quando existirem).
-- Queries Prisma em dados de tenant incluem `tenantId: context.tenantId` (ou join equivalente) **e** `requireTenantContext()`.
+- Modelos ligados à conta têm `userId` **ou** FK obrigatória para entidade com `userId` (ex.: `UserStory` → `User`, `ChildProfile` → `User`).
+- Migrations com `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY` alinhadas com `userId` / dono (quando existirem).
+- Queries Prisma em dados da família incluem `userId: sessionUserId` (ou join equivalente) **e** `requireCurrentUser()` / verificação explícita de `profile.userId`.
 
 **Falha**
 
-- `model` novo/alterado tenant-scoped sem `tenantId` nem FK para dono.
-- `prisma/migrations/` sem `ENABLE ROW LEVEL SECURITY` / `CREATE POLICY` para tabelas de tenant (reportar **uma vez** como finding sistémico Alta se o projecto inteiro não tiver RLS; não listar cada tabela).
-- Query/raw SQL sem filtro de tenant em tabela de tenant.
-- Tabela de tenant com RLS desligado, policy `USING (true)`, ou policy só no `SELECT` (writes abertos).
+- `model` novo/alterado com dados por família sem `userId` nem FK para dono.
+- `prisma/migrations/` sem `ENABLE ROW LEVEL SECURITY` / `CREATE POLICY` para tabelas de utilizador (reportar **uma vez** como finding sistémico Alta se o projecto inteiro não tiver RLS; não listar cada tabela).
+- Query/raw SQL sem filtro de `userId` em `UserStory`, `ChildProfile`, `Collection`, `UsageEvent`, `AdaptationVote`, etc.
+- Tabela com RLS desligado, policy `USING (true)`, ou policy só no `SELECT` (writes abertos).
 
 **Como procurar**
 
 ```bash
 rg -n "ENABLE ROW LEVEL SECURITY|CREATE POLICY|ALTER TABLE" prisma/
 rg -n "model " prisma/schema.prisma
-rg -n "prisma\.\w+\.(findUnique|findFirst|findMany|update|delete|upsert)" src/ app/ --glob '*.ts'
+rg -n "prisma\.\w+\.(findUnique|findFirst|findMany|update|delete|upsert)" src/ --glob '*.ts'
+rg -n "userId|childProfileId" src/lib/repositories/ src/lib/services/ --glob '*.ts'
 ```
 
-Tabelas globais legítimas (não marcar): `User` (auth). Mesmo assim, mutações devem ir pelo use case autenticado.
+Tabelas globais/comunitárias legítimas (não marcar isolamento por `userId`): `Passage`, `PassageAdaptation` (conteúdo partilhado). Mesmo assim, mutações sensíveis (votos, aprovação) devem ir por serviço autenticado + parent gate quando aplicável.
 
 ---
 
 ## 2. Autorização decidida no frontend em vez do servidor
 
-Esconder botões **não** é autorização. A decisão tem de estar no **servidor**: use case com `requireTenantContext` + `requirePermission` (+ `requireRestaurantAccess` quando o recurso é de um restaurante).
+Esconder botões **não** é autorização. A decisão tem de estar no **servidor**: Route Handler / Server Action com `requireCurrentUser()` e regras no **serviço** (`src/lib/services/`).
 
 **Passa**
 
-- Server Action / Route Handler chama use case; o use case chama `requirePermission(context, modulo, acao)` **antes** de ler/escrever.
-- UI pode usar `hasPermission` só para UX (ocultar controlos).
+- Route Handler (`src/app/api/**`) ou Server Action chama `requireCurrentUser()` **antes** de ler/escrever.
+- Votos/aprovações: `verifyParentGateToken()` no servidor (`src/app/api/votes/route.ts`) — **não** confiar em `parentUnlocked` vindo do cliente.
+- Parent gate: `POST /api/parent-gate/verify` emite cookie JWT; modal (`ParentGateModal`) só dispara UX.
+- UI pode ocultar botões por UX; a API/action recusa sem sessão/gate.
 
 **Falha**
 
-- `hasPermission` / `canEdit` / `permissions.*.edit` só em componente cliente, e o `actions.ts` / `app/api` / use case **não** chama `requirePermission`.
-- Action `"use server"` com Prisma direto, sem `requireTenantContext` / `requirePermission`.
-- Página server que mostra/edita dados sem as mesmas guards do use case.
-- Middleware/proxy que “protege” a rota mas a action continua invocável.
+- `parentUnlocked: true` (ou equivalente) no body JSON aceite pelo servidor como prova de gate.
+- Server Action / route com Prisma ou `container.services.*` directo, sem `requireCurrentUser()`.
+- `ParentGateModal` a chamar `/api/votes` **sem** passar antes por `/api/parent-gate/verify`.
+- `src/proxy.ts` protege a página mas a rota API continua invocável sem auth.
 
 **Como procurar**
 
 ```bash
-rg -n "hasPermission|canEdit|canDelete|permissions\." src/components app --glob '*.{ts,tsx}'
-rg -n '"use server"' app --glob '*.ts'
-rg -n "requirePermission|requireTenantContext|requireRestaurantAccess" src/use-cases app
+rg -n "parentUnlocked|onSuccess.*fetch.*/api/votes" src/components --glob '*.{ts,tsx}'
+rg -n '"use server"' src/lib --glob '*.ts'
+rg -n "requireCurrentUser|getCurrentUserId|verifyParentGateToken" src/app/api src/lib --glob '*.ts'
+rg -n "export async function (GET|POST|PUT|PATCH|DELETE)" src/app/api --glob '*.ts'
 ```
 
-Cruzar cada action em `app/**/actions.ts` e cada `app/api/**/route.ts` com o use case. Se a action não passa pelo use case, é finding.
+Cruzar cada `src/app/api/**/route.ts` e cada `src/lib/**/actions.ts` com auth + serviço. Action que muta dados familiares sem `requireCurrentUser()` → finding.
 
 ---
 
 ## 3. Rotas que buscam por ID sem checar o dono (IDOR)
 
-Qualquer leitura/escrita por `id` (params, query, FormData, JSON) tem de provar que o recurso pertence ao tenant (e restaurante, se houver scope).
+Qualquer leitura/escrita por `id` (params, query, JSON) tem de provar que o recurso pertence ao utilizador autenticado (e ao perfil activo, se aplicável).
 
 **Passa**
 
 ```ts
-where: { id, tenantId: context.tenantId }
+// História da família
+where: { id: storyId, userId: user.id }
+
+// Perfil de criança
+where: { id: profileId, userId: user.id }
+// ou, após findById:
+if (profile.userId !== user.id) throw ...
 ```
 
-ou equivalente via relação (`restaurant: { tenantId }`) + `requireRestaurantAccess(context, restaurantId)` quando o membro não tem `accessAllRestaurants`.
-
-IDs públicos (slug da landing, token de unsubscribe) são OK se o segredo **não** for um cuid adivinhável de outro tenant — tokens HMAC/aleatórios, não `customerId` cru.
+- `getUserStoryAction` → `library.getUserStory(user.id, storyId)` (filtra `userId`).
+- `setActiveChildProfile` → verifica `profile.userId === user.id` antes do cookie.
+- Conteúdo comunitário (`PassageAdaptation` por `adaptationId`) pode ser legível sem ser “dono”; mutações (voto, aprovar) têm regra de negócio explícita.
 
 **Falha**
 
-- `findUnique` / `update` / `delete` com `where: { id }` (ou só `id` do params) em modelo tenant-scoped.
-- `app/**/[id]/**` ou `app/api/**/[id]/**` que carrega o recurso sem `tenantId`.
-- FormData `id` / `campaignId` / `customerId` usado sem re-checar dono no servidor.
-- SuperAdmin a operar noutro tenant sem `requireSuperAdmin` + tenant alvo explícito.
+- `findUnique` / `update` / `delete` com `where: { id }` só, em `UserStory`, `ChildProfile`, `Collection`, `ReadingProgress`, etc.
+- `src/app/api/**/[id]/**` ou actions que recebem `storyId` / `adaptationId` / `childProfileId` do cliente sem re-checar `userId`.
+- `GET /api/adaptations/[id]/versions` ou `POST /api/audio/generate` com `adaptationId` sem auth ou sem validar acesso.
+- Serviço que altera `PassageAdaptation` só por `adaptationId` quando a acção devia estar limitada à família.
 
 **Como procurar**
 
 ```bash
-rg -n "where:\s*\{\s*id:" src/use-cases app --glob '*.ts'
-rg -n "params\.(id|bookingId|customerId|campaignId|restaurantId)" app --glob '*.{ts,tsx}'
-rg -n "formData.get\([\"']id[\"']\)" app --glob '*.ts'
+rg -n "where:\s*\{\s*id:" src/lib/repositories src/lib/services --glob '*.ts'
+rg -n "params\.(id|storyId|adaptationId|profileId)" src/app --glob '*.{ts,tsx}'
+rg -n "findById\(|getUserStory\(|childProfileId" src/lib --glob '*.ts'
+rg -n "adaptationId" src/app/api --glob '*.ts'
 ```
 
-Cada match: confirmar `tenantId` (ou dono) **na mesma query**. Se o id vem do cliente e o where não inclui dono → Crítica.
+Cada match: confirmar `userId` (ou `profile.userId`) **na mesma query ou imediatamente a seguir**. ID do cliente sem filtro de dono → Crítica.
 
 ---
 
 ## 4. Segredos/API keys expostos no código ou no bundle
 
-Segredo = qualquer valor que autentique ou dê acesso (DB, Resend, Blob, Redis, cron, VAPID **private**, `AUTH_SECRET`). `NEXT_PUBLIC_*` entra no bundle.
+Segredo = qualquer valor que autentique ou dê acesso (`AUTH_SECRET`, `DATABASE_URL`, `DIRECT_URL`, `LLM_API_KEY`, `ELEVENLABS_API_KEY`, `GOOGLE_CLIENT_SECRET`). `NEXT_PUBLIC_*` entra no bundle.
 
 **Passa**
 
-- Segredos só em env de servidor (`process.env.X` em código server: use cases, `src/lib/*` sem `"use client"`, route handlers).
+- Segredos só em env de servidor (`process.env.X` em `src/auth.ts`, `src/lib/services/`, `src/lib/providers/`, route handlers — **sem** `"use client"`).
 - `.env*` no `.gitignore`; `.env.example` com placeholders vazios.
-- Público permitido: `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (chave pública).
+- Público permitido: `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` (flag booleana, não o secret).
 
 **Falha**
 
-- Literal `sk_`, `re_`, `postgres://`, `AUTH_SECRET=`, `BLOB_READ_WRITE_TOKEN`, `VAPID_PRIVATE_KEY`, `CRON_SECRET` em `src/`, `app/`, testes commitados com valores reais.
-- `NEXT_PUBLIC_` em segredo (API keys, tokens de escrita, private keys).
+- Literal `sk_`, `postgres://`, `AUTH_SECRET=`, chaves ElevenLabs/OpenAI reais em `src/`, `app/`, testes commitados.
+- `NEXT_PUBLIC_` com API key, client secret ou token de escrita.
 - Segredo importado para ficheiro `"use client"` ou passado a componente cliente.
-- Token de cron/webhook sem comparação em route `app/api`.
-- Palavra-passe de demo no bundle (`defaultValue="demo1234"` no login, credenciais do seed em componentes cliente). `prisma/seed.ts` só em local/staging não é finding; o form de produção a pré-preencher `demo1234` é.
+- Palavra-passe de demo no bundle (`defaultValue=` no login). `prisma/seed.ts` e hint só em `NODE_ENV === 'development'` no login **não** são finding; pré-preencher credenciais em produção **é**.
 
 **Como procurar**
 
 ```bash
-rg -n "NEXT_PUBLIC_" app src --glob '*.{ts,tsx,js}'
-rg -n "(sk_live|sk_test|re_|AKIA|BEGIN PRIVATE|postgres://|ghp_|xoxb-)" app src --glob '!*.example'
-rg -n "process\.env\.(AUTH_SECRET|DATABASE_URL|RESEND_API_KEY|BLOB_|CRON_SECRET|VAPID_PRIVATE|UNSUBSCRIBE_SECRET|UPSTASH_)" --glob '*.{ts,tsx}'
-rg -n "demo1234|defaultValue=" src/components/auth app --glob '*.{ts,tsx}'
+rg -n "NEXT_PUBLIC_" src/app src/components src/lib --glob '*.{ts,tsx,js}'
+rg -n "(sk_live|sk_test|AKIA|BEGIN PRIVATE|postgres://|ghp_)" src/ app/ --glob '!*.example'
+rg -n "process\.env\.(AUTH_SECRET|DATABASE_URL|DIRECT_URL|LLM_API_KEY|ELEVENLABS|GOOGLE_CLIENT_SECRET)" src/ --glob '*.{ts,tsx}'
+rg -n "defaultValue=|devpassword" src/app/login src/components --glob '*.{ts,tsx}'
 ```
 
-Confirmar que cada `process.env` de segredo **não** está em módulo cliente. `tests/` com secrets fake (`test-secret-...`) não é finding.
+Confirmar que cada `process.env` de segredo **não** está em módulo cliente. `vitest.setup.ts` / testes com `test-auth-secret` fake não é finding.
 
 ---
 
 ## 5. Input do usuário sem validação/sanitização e upload sem checar tipo de arquivo
 
-Validação no cliente é UX. A fonte de verdade é **Zod no servidor** (`src/lib/validators/` ou schema no use case), aplicada ao input **antes** de persistir.
+Validação no cliente é UX. A fonte de verdade é **Zod no servidor** (`src/lib/domain/schemas.ts` ou schema inline na route), aplicada ao input **antes** de persistir ou chamar providers externos.
 
 **Passa**
 
-- Use case: `validateXInput(input)` / `schema.safeParse` e só depois Prisma.
+- Route/service: `generateStoryInputSchema.parse(...)`, `voteSchema.parse(...)`, schemas em `/api/auth/login`, `/api/auth/register`, `/api/parent-gate/verify`, `/api/audio/generate`.
+- Preferências: `userPreferencesSchema` em `ChildProfileService`.
 - Strings de utilizador não interpoladas em SQL raw nem em HTML (`dangerouslySetInnerHTML` só com sanitização).
-- Upload: tipo verificado **no servidor** (MIME allowlist + extensão + tamanho). `accept=` no `<input>` não conta. Não confiar só em `file.type`.
+- **Áudio:** inputs (`text`, `sfxPrompt`, `tagSom`) validados antes de `AudioService` / ElevenLabs; paths gerados no servidor (`LocalStorageProvider`), não paths arbitrários do cliente.
 
 **Falha**
 
-- `formData.get(...)` passado a Prisma/email/blob sem schema Zod.
-- Query/`searchParams` usados em `where` sem whitelist/coerce.
-- Upload (`uploadBlob`, `put(`, `type="file"`) sem allowlist de MIME/extensão no servidor, ou allowlist só no `accept` do input.
-- CSV/XLSX import sem validar colunas/tipos no servidor (`validateImportCustomersInput` é o padrão).
-- HTML de landing/templates renderido cru a partir de input.
+- `request.json()` passado a Prisma ou `container.services.*` sem `safeParse` / `.parse`.
+- Query/`searchParams` usados em `where` sem whitelist/coerce (`ageTier`, `contentType` enums).
+- Upload de ficheiro (`type="file"`) sem allowlist MIME no servidor — **neste repo ainda não há upload de utilizador**; se aparecer, aplicar a mesma regra.
+- HTML de história/adaptação renderizado cru a partir de input LLM sem schema (`adaptationContentSchema` é o padrão).
 
 **Como procurar**
 
 ```bash
-rg -n "formData.get\(" app src --glob '*.{ts,tsx}'
-rg -n "uploadBlob|put\(|type=[\"']file[\"']|accept=" app src --glob '*.{ts,tsx}'
-rg -n "dangerouslySetInnerHTML|\$queryRaw|\$executeRaw" app src --glob '*.{ts,tsx}'
-rg -n "validate\w+Input|safeParse" src/use-cases app --glob '*.ts'
+rg -n "request\.json\(\)|searchParams\.get" src/app/api src/lib --glob '*.ts'
+rg -n "dangerouslySetInnerHTML|\$queryRaw|\$executeRaw" src/ --glob '*.{ts,tsx}'
+rg -n "safeParse|\.parse\(" src/lib/domain src/app/api src/lib/services --glob '*.ts'
+rg -n "type=[\"']file[\"']|upload|FormData" src/ --glob '*.{ts,tsx}'
 ```
 
-Cada action/route com FormData ou JSON: tem de existir `validate*` **no servidor** (use case ou action). Validação só no form React → finding.
-
-Uploads neste repo: `src/lib/blob.ts` + `BLOB_READ_WRITE_TOKEN`. Qualquer caller tem de restringir `contentType` (não aceitar o do cliente às cegas) e tamanho.
+Cada route/action com JSON: tem de existir schema Zod **no servidor**. Validação só no form React → finding.
 
 ---
 
 ## 6. CSRF em server actions
 
-Next.js App Router valida `Origin`/`Host` nas Server Actions. Isso **não** cobre Route Handlers (`app/api/**`) nem actions se `allowedOrigins` estiver aberto.
+Next.js App Router valida `Origin`/`Host` nas Server Actions. Isso **não** cobre Route Handlers (`src/app/api/**`) nem actions se `allowedOrigins` estiver aberto.
 
 **Passa**
 
-- Mutações via `"use server"` (POST) com cookies de sessão; sem `serverActions.allowedOrigins: ["*"]`.
-- Route Handlers que mutam: método POST/PATCH/DELETE, auth no servidor, sem CORS `*` com credenciais.
-- Cookies de sessão `SameSite=Lax` (ou `Strict`); não `None` sem necessidade.
+- Mutações via `"use server"` (`src/lib/profiles/actions.ts`, `src/lib/stories/library-actions.ts`, etc.) com cookies de sessão NextAuth; sem `serverActions.allowedOrigins: ["*"]`.
+- Route Handlers que mutam: **POST** (não GET), auth via `requireCurrentUser()` ou rotas públicas documentadas (`/api/auth/login`, `/api/auth/register`).
+- Cookies `SameSite=Lax` (parent gate, active child profile).
 
 **Falha**
 
-- `experimental.serverActions.allowedOrigins` (ou equivalente) com `*` / origens de terceiros.
-- `app/api/**` que muta em **GET** (ex.: cancelar reserva, unsubscribe que altera estado só com GET sem token HMAC).
-- `Access-Control-Allow-Origin: *` (ou eco do `Origin`) em rotas autenticadas por cookie.
-- Form HTML clássico `method="POST"` para API própria **sem** SameSite/origem, se não for Server Action.
-- Action pública (login, unsubscribe) invocável cross-origin porque a origem check foi desligada.
-
-Unsubscribe com token HMAC no POST é OK; GET que só mostra a página também. GET que **altera** consentimento → finding.
+- `serverActions.allowedOrigins` com `*` em `next.config.ts`.
+- `src/app/api/**` que muta estado em **GET**.
+- `Access-Control-Allow-Origin: *` com credenciais em rotas autenticadas por cookie.
+- Login/registo invocável cross-origin porque a origem check foi desligada.
 
 **Como procurar**
 
 ```bash
 rg -n "allowedOrigins|serverActions" next.config.ts
-rg -n "export async function GET" app/api --glob '*.ts'
-rg -n "Access-Control-Allow-Origin|Access-Control-Allow-Credentials" app src proxy.ts next.config.ts
-rg -n '"use server"' app --glob '*.ts'
+rg -n "export async function GET" src/app/api --glob '*.ts'
+rg -n "Access-Control-Allow-Origin" src/ next.config.ts src/proxy.ts
+rg -n '"use server"' src/lib --glob '*.ts'
 ```
 
 ---
 
 ## 7. SSRF (as URLs são guardadas, o servidor não as fetcha)
 
-Neste produto, URLs de utilizador (`logoUrl`, `customSvgUrl`, `ctaUrl`, `imageUrl`, galeria, especialidades) são **persistidas e renderizadas** (`<img src>`, `<a href>`). O servidor **não** as fetcha. Guardar um URL **não é SSRF**.
+Neste produto, paths de áudio (`audioPath`, `narrationAudioPath`) e URLs estáticas são **persistidos e servidos** pelo browser ou storage local. O servidor **não** deve fazer `fetch` a URLs arbitrárias do cliente.
 
 **Passa**
 
-- Validar formato (`z.string().url()`, http/https) e gravar.
-- O browser do visitante é que pede o recurso.
+- `fetch` server-side só para APIs conhecidas: OpenAI (`LLM_BASE_URL`), ElevenLabs (`ELEVENLABS_BASE_URL`), endpoints internos fixos.
+- Texto bíblico: ficheiro local `data/bible/ALM1911.json` via `LocalBibleTextProvider` — sem HTTP a URL de utilizador.
 
 **Falha (SSRF de verdade)**
 
-- Servidor faz `fetch` / `axios` / `got` / `undici` / `head` a um URL que veio do cliente (logo, webhook, preview, og:image, proxy de imagem, “validar URL”).
-- Pedido a `localhost`, `127.0.0.1`, `169.254.169.254`, IPs privados, ou seguir redirects para aí.
-- `new URL(userInput)` usado como destino de pedido server-side.
+- Servidor faz `fetch` / `axios` a URL construída a partir de input do cliente ou campo da BD (webhook, “validar URL”, proxy de áudio externo).
+- Pedido a `localhost`, `127.0.0.1`, `169.254.169.254`, IPs privados.
 
-Não reportar SSRF só porque existe `logoUrl` na BD ou `<img src={logoUrl}>`. `javascript:` / `data:` em href é XSS (falha 5), não SSRF.
+Não reportar SSRF só porque existe `audioPath` na BD ou `<audio src={url}>`. `javascript:` / `data:` em href é XSS (falha 5), não SSRF.
 
 **Como procurar**
 
 ```bash
-rg -n "fetch\(|axios|got\(|undici" src app --glob '*.{ts,tsx}'
-rg -n "logoUrl|ctaUrl|imageUrl|customSvgUrl" src/use-cases src/lib app --glob '*.ts'
+rg -n "fetch\(|axios|got\(|undici" src/ --glob '*.{ts,tsx}'
+rg -n "audioPath|narrationAudioPath|baseUrl" src/lib/services src/lib/providers --glob '*.ts'
 ```
 
-Cada `fetch(`: o URL é constante/env (Resend, Blob, Redis, APIs internas) → OK. Se concatena ou usa campo de input/BD → Crítica.
+Cada `fetch(`: URL constante/env → OK. URL de body/params/BD → Crítica.
 
 ---
 
 ## 8. Enumeração de e-mails no login
 
-O login não pode revelar se um e-mail existe. Mesma mensagem, mesmo status HTTP, custo semelhante (não saltar o `bcrypt` quando o user não existe).
+O login não pode revelar se um e-mail existe. Mesma mensagem, status coerente, custo semelhante (não saltar o `bcrypt` quando o user não existe).
 
-Padrão neste repo: `loginAction` / `authorize` devolvem `"Credenciais inválidas."` em qualquer falha.
+Padrão neste repo: `INVALID_CREDENTIALS_MESSAGE` / `"Credenciais inválidas."` em `src/auth.ts`, `/api/auth/login`, página de login.
 
 **Passa**
 
 - Uma única mensagem genérica (e-mail desconhecido **e** password errada).
-- Sem `fieldErrors.email` do tipo “não encontrado” / “já existe” em rotas **públicas**.
-- `authorize` devolve `null` nos dois casos; se possível, `bcrypt.compare` também contra hash dummy quando o user não existe (timing).
+- Registo público (`/api/auth/register`) com mensagem genérica (`GENERIC_REGISTER_FAILURE`), sem “e-mail já registado”.
+- `authorizeCredentials` devolve `null` nos dois casos; `bcrypt.compare` contra `DUMMY_PASSWORD_HASH` quando user não existe.
 
 **Falha**
 
 - Mensagens distintas: “e-mail não encontrado” vs “palavra-passe incorrecta”.
 - Status 404 vs 401 conforme o e-mail exista.
-- Tempo de resposta óbvio (return imediato sem `bcrypt` vs compare).
-- Forgot-password / registo público a confirmar existência do e-mail.
-- `?error=` na URL a distinguir user inexistente.
-
-Invite (`inviteUser`) atrás de `requirePermission(users, edit)` pode dizer que o membro já está na org — não é enumeração pública.
+- Return imediato sem `bcrypt` quando user não existe (timing).
+- `?error=` na URL a distinguir user inexistente vs password errada.
 
 **Como procurar**
 
 ```bash
-rg -n "Credenciais|e-mail já|email já|não encontrado|não existe|Invalid credentials" src/lib/auth.ts app/(auth) src/components/auth src/use-cases --glob '*.{ts,tsx}'
-rg -n "authorize|loginAction|signIn" src/lib/auth.ts app/(auth)
+rg -n "Credenciais|e-mail já|email já|não encontrado|não existe|Invalid credentials|GENERIC_REGISTER" src/auth.ts src/app/api/auth src/app/login --glob '*.{ts,tsx}'
+rg -n "authorizeCredentials|authorize\(" src/auth.ts src/app/api/auth --glob '*.ts'
 ```
 
 ---
 
 ## 9. Headers de segurança (CSP, etc.)
 
-Headers aplicam-se em `next.config.ts` `headers()`, `vercel.json`, ou `proxy.ts`. Neste repo, `next.config.ts` só define Cache-Control do `sw.js` — ausência de CSP/resto é finding **sistémico** (uma linha, não por página).
+Headers em `next.config.ts` `headers()`, `src/proxy.ts`, ou `vercel.json`.
 
-**Passa** (mínimo em todas as respostas HTML)
+**Passa** (mínimo em respostas HTML)
 
-- `Content-Security-Policy` (script/style/img/connect; `frame-ancestors 'none'` ou `'self'` no dashboard)
+- `Content-Security-Policy`
 - `X-Content-Type-Options: nosniff`
-- `Referrer-Policy` (`strict-origin-when-cross-origin` ou mais apertada)
-- `X-Frame-Options: DENY` ou `SAMEORIGIN` (redundante se CSP `frame-ancestors` existir)
-- `Permissions-Policy` a desligar câmera/mic/geolocation se não forem usados
-- `Strict-Transport-Security` em produção HTTPS (Vercel pode injectar HSTS; confirmar, não duplicar o finding se já estiver na edge)
+- `Referrer-Policy`
+- `X-Frame-Options: SAMEORIGIN` ou `DENY`
+- `Permissions-Policy` (câmera/mic desligados se não usados)
+- HSTS em produção HTTPS (Vercel edge; não duplicar finding se já injectado)
 
 **Falha**
 
-- Nenhum dos headers acima no `next.config.ts` / `vercel.json` / `proxy.ts`.
-- CSP com `unsafe-inline` **e** `unsafe-eval` em `script-src` sem nonce/hash (Média se CSP existe; Alta se não há CSP nenhum).
-- `X-Frame-Options: ALLOWALL` ou CSP `frame-ancestors *` no dashboard (clickjacking).
-
-Não exigir CSP perfeita à primeira. Reportar falta total como Alta; CSP presente mas frouxa como Média.
+- Nenhum dos headers acima configurado.
+- CSP com `'unsafe-inline'` **e** `'unsafe-eval'` em `script-src` sem nonce/hash (Média se CSP existe; Alta se não há CSP).
+- `frame-ancestors *` em área autenticada (clickjacking).
 
 **Como procurar**
 
 ```bash
-rg -n "Content-Security-Policy|X-Content-Type-Options|Referrer-Policy|X-Frame-Options|Permissions-Policy|Strict-Transport-Security" next.config.ts vercel.json proxy.ts
-rg -n "headers\(" next.config.ts proxy.ts
+rg -n "Content-Security-Policy|X-Content-Type-Options|Referrer-Policy|X-Frame-Options|Permissions-Policy" next.config.ts src/proxy.ts vercel.json
+rg -n "headers\(" next.config.ts
+rg -n "response\.headers\.set" src/proxy.ts
 ```
 
 ---
 
 ## 10. Open redirect em callbackUrl/redirectTo
 
-Depois do login, o destino tem de ser um path **relativo da mesma origem**. Query `callbackUrl` / `redirect` / `next` passada a `signIn({ redirectTo })` ou `redirect()` sem allowlist é open redirect.
+Depois do login, o destino tem de ser um path **relativo da mesma origem**. Query `callbackUrl` passada a `signIn('google', { callbackUrl })` ou `router.push` tem de ser filtrada.
 
 **Passa**
 
+- `sanitizeCallbackPath` em `src/lib/auth/safe-redirect.ts` (servidor) e `safe-redirect-client.ts` (cliente).
 - Só paths que começam por `/` e **não** por `//` nem `/\`.
-- Rejeitar `https:`, `http:`, `javascript:`, backslash, URL-encoded `//`.
-- `proxy.ts` a gravar `callbackUrl` a partir de `pathname` interno (já relativo) está OK; o perigo é o valor chegar **outra vez** do cliente sem revalidar.
+- `src/proxy.ts` grava `callbackUrl` a partir de `pathname` interno; login revalida no cliente.
 
 **Falha**
 
-- `loginAction(..., callbackUrl)` → `signIn({ redirectTo: callbackUrl })` sem allowlist (`app/(auth)/login/actions.ts`).
-- `searchParams.callbackUrl` / `redirectTo` / `next` usado em `redirect()`, `NextResponse.redirect`, `router.push` no servidor sem filtro.
+- `searchParams.callbackUrl` usado em `redirect()`, `NextResponse.redirect`, `router.push` ou `signIn({ callbackUrl })` **sem** `sanitizeCallbackPath`.
 - Allowlist que aceita `//evil.com` ou `https://evil.com`.
-
-Isto **não** é CSRF nem SSRF: o browser é que navega para o destino após auth.
 
 **Como procurar**
 
 ```bash
-rg -n "callbackUrl|redirectTo|searchParams\.(redirect|next)" app src proxy.ts --glob '*.{ts,tsx}'
+rg -n "callbackUrl|redirectTo|searchParams\.(redirect|next)" src/app src/proxy.ts src/lib/auth --glob '*.{ts,tsx}'
+rg -n "signIn\(" src/app/login --glob '*.{ts,tsx}'
 ```
 
 ---
 
 ## 11. Rate limit no login e em writes públicos
 
-Enumeração (falha 8) é mensagem. Isto é **volume**: brute-force de passwords e abuso de endpoints públicos. O limite tem de correr **no servidor** (Upstash / in-memory em `src/lib/rate-limit.ts` ou no use case), não só `disabled` no botão.
-
-Neste repo já há limite em reserva pública, landing e unsubscribe. O **login não** está nessa lista.
+Enumeração (falha 8) é mensagem. Isto é **volume**: brute-force e abuso de endpoints públicos. O limite tem de correr **no servidor** (`src/lib/rate-limit.ts` → `checkRateLimit`), não só `disabled` no botão.
 
 **Passa**
 
-- Login (`loginAction` / `authorize`) com limite por IP (e, se possível, por e-mail).
-- Writes públicos com limite: criar reserva (`create-booking`), POST unsubscribe, vistas/landing se forem baratas de abusar.
-- Em produção o limiter não pode ser só in-memory (várias instâncias); Upstash já é o padrão deste repo.
+- Login: `POST /api/auth/login` com limite por IP e e-mail (`login:ip:`, `login:email:`).
+- Registo: `POST /api/auth/register` com limite por IP (`register:ip:`).
+- Em produção multi-instância (Vercel): limiter partilhado (Redis/Upstash) — in-memory **só** aceitável em dev/staging.
 
 **Falha**
 
-- Login sem `get*RateLimiter` / `limit(` / equivalente.
-- Nova action/route pública que cria dados (reserva, contacto, upload) sem limite no servidor.
-- Limite só no cliente (`isPending`, debounce).
+- Login/registo sem `checkRateLimit` / equivalente.
+- Nova route pública que cria dados (`/api/auth/register`, futuros contact forms) sem limite.
+- Limite só no cliente (`disabled`, debounce).
 
-Dashboard autenticado (campanhas, clientes) não exige o mesmo limite de IP; o login e a landing pública sim.
+Rotas autenticadas (`/api/stories/generate`, `/api/votes`) não exigem o mesmo limite de IP público; login e registo **sim**.
 
 **Como procurar**
 
 ```bash
-rg -n "getBookingRateLimiter|getLandingRateLimiter|getUnsubscribeRateLimiter|rate-limit" src app proxy.ts --glob '*.{ts,tsx}'
-rg -n "loginAction|authorize" src/lib/auth.ts app/(auth)
+rg -n "checkRateLimit|getClientIp" src/app/api src/auth.ts src/lib/rate-limit.ts --glob '*.ts'
+rg -n "export async function POST" src/app/api/auth --glob '*.ts'
 ```
 
-Cruzar: cada rota pública de escrita ou auth tem de aparecer no limiter. Login ausente → Alta.
+Cruzar: cada rota pública de auth/registo tem de usar `checkRateLimit`. Login ausente → Alta.
 
 ---
 
@@ -408,21 +418,21 @@ Cruzar: cada rota pública de escrita ou auth tem de aparecer no limiter. Login 
 Copiar e ir marcando:
 
 ```
-- [ ] 1. RLS / isolamento tenant (schema + migrations + queries)
-- [ ] 2. Autorização no servidor (actions/API → use case → requirePermission)
-- [ ] 3. IDOR (where por id inclui dono/tenant)
+- [ ] 1. RLS / isolamento por userId (schema + migrations + queries)
+- [ ] 2. Autorização no servidor (actions/API → services → requireCurrentUser / parent gate)
+- [ ] 3. IDOR (where por id inclui userId ou profile.userId)
 - [ ] 4. Segredos (env servidor vs NEXT_PUBLIC / literais / demo no login)
-- [ ] 5. Validação Zod no servidor + tipo de upload no servidor
+- [ ] 5. Validação Zod no servidor (schemas.ts + routes)
 - [ ] 6. CSRF em server actions / APIs que mutam
-- [ ] 7. SSRF (só se o servidor fetchar URLs de input; guardar URL não conta)
-- [ ] 8. Enumeração de e-mails no login
+- [ ] 7. SSRF (só se o servidor fetchar URLs de input; guardar path/URL não conta)
+- [ ] 8. Enumeração de e-mails no login/registo
 - [ ] 9. Headers (CSP, nosniff, referrer, frame, HSTS)
-- [ ] 10. Open redirect (callbackUrl / redirectTo allowlist)
-- [ ] 11. Rate limit no login e writes públicos
+- [ ] 10. Open redirect (callbackUrl allowlist)
+- [ ] 11. Rate limit no login e registo público
 - [ ] Relatório com as 11 falhas (incluindo as sem findings)
 ```
 
-1. Listar superfície (schema, actions, APIs, uploads, env, login, next.config, rate-limit) no âmbito.
+1. Listar superfície (schema, services, repositories, actions, APIs, auth, parent gate, geração/cache, áudio, env, login, next.config, proxy, rate-limit) no âmbito.
 2. Correr as buscas de cada falha.
-3. Abrir os matches e confirmar (não reportar falso positivo óbvio: `where: { id, tenantId }`; URL gravada sem `fetch`; `callbackUrl` já filtrado para path `/...`).
+3. Abrir os matches e confirmar (não reportar falso positivo óbvio: `where: { id, userId }`; `PassageAdaptation` comunitário legível; `callbackUrl` já filtrado; `fetch` só para LLM/ElevenLabs).
 4. Emitir a tabela. Parar. Não implementar fixes.
