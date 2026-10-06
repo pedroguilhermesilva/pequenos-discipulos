@@ -22,6 +22,30 @@ export function buildAdaptationCacheKey(key: AdaptationLookupKey): string {
     .digest('hex');
 }
 
+/** Pick one item at random from a list (tiebreaker). */
+export function pickRandom<T>(items: readonly T[]): T | null {
+  if (items.length === 0) return null;
+  const index = Math.floor(Math.random() * items.length);
+  return items[index] ?? null;
+}
+
+/** Among equally scored candidates, pick one at random. */
+export function pickHighestScoredAdaptation(
+  candidates: PassageAdaptation[]
+): PassageAdaptation | null {
+  if (candidates.length === 0) return null;
+
+  const sorted = [...candidates].sort((a, b) => {
+    if (b.voteScore !== a.voteScore) return b.voteScore - a.voteScore;
+    if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
+    return 0;
+  });
+
+  const topScore = sorted[0]?.voteScore ?? 0;
+  const topCandidates = sorted.filter((c) => c.voteScore === topScore);
+  return pickRandom(topCandidates);
+}
+
 export class StoryCacheService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -60,7 +84,7 @@ export class StoryCacheService {
     return cachedViewsShown < MAX_CACHED_VIEWS_PER_REQUEST;
   }
 
-  async pickRandomUnseenCachedAdaptation(params: {
+  async pickHighestScoredUnseenCachedAdaptation(params: {
     lookupKey: AdaptationLookupKey;
     cacheKey: string;
     userId: string;
@@ -93,12 +117,21 @@ export class StoryCacheService {
           ...(exclude.size > 0 ? [{ id: { notIn: Array.from(exclude) } }] : []),
         ],
       },
+      orderBy: [{ voteScore: 'desc' }, { voteCount: 'desc' }],
     });
 
-    if (candidates.length === 0) return null;
+    return pickHighestScoredAdaptation(candidates);
+  }
 
-    const index = Math.floor(Math.random() * candidates.length);
-    return candidates[index] ?? null;
+  /** @deprecated Use pickHighestScoredUnseenCachedAdaptation */
+  async pickRandomUnseenCachedAdaptation(params: {
+    lookupKey: AdaptationLookupKey;
+    cacheKey: string;
+    userId: string;
+    childProfileId?: string;
+    excludeAdaptationIds?: string[];
+  }): Promise<PassageAdaptation | null> {
+    return this.pickHighestScoredUnseenCachedAdaptation(params);
   }
 
   async recordView(params: {

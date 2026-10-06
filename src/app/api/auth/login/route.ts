@@ -11,14 +11,14 @@ const loginSchema = z.object({
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);
-    const ipLimit = checkRateLimit(`login:ip:${ip}`, 20, 15 * 60 * 1000);
+    const ipLimit = await checkRateLimit(`login:ip:${ip}`, 20, 15 * 60 * 1000);
     if (!ipLimit.allowed) {
       return NextResponse.json({ ok: false, message: INVALID_CREDENTIALS_MESSAGE }, { status: 429 });
     }
 
     const body = loginSchema.parse(await request.json());
     const normalizedEmail = body.email.trim().toLowerCase();
-    const emailLimit = checkRateLimit(`login:email:${normalizedEmail}`, 10, 15 * 60 * 1000);
+    const emailLimit = await checkRateLimit(`login:email:${normalizedEmail}`, 10, 15 * 60 * 1000);
     if (!emailLimit.allowed) {
       return NextResponse.json({ ok: false, message: INVALID_CREDENTIALS_MESSAGE }, { status: 429 });
     }

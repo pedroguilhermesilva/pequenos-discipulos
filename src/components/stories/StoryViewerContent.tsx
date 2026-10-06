@@ -16,7 +16,6 @@ import { loadPreferencesFromStorage } from '@/lib/onboarding/storage';
 import type { UserPreferences } from '@/lib/onboarding/types';
 import { getAgeTierFromPreferences, getAgeTierLabel } from '@/lib/stories/age-tiers';
 import { getStoryQuiz } from '@/lib/stories/story-quiz';
-import { getBiblePassageTextAction } from '@/lib/stories/bible-text-actions';
 import { getAdaptationContentAction } from '@/lib/stories/library-actions';
 import type { AdaptationContent, StoryQuizData } from '@/lib/domain/schemas';
 import { cn } from '@/lib/cn';
@@ -75,11 +74,7 @@ export function StoryViewerContent({
     }
     return [];
   });
-  const [sourceLoading, setSourceLoading] = useState(
-    () =>
-      !initialSourceVerses?.length &&
-      passage.verses.length === 0
-  );
+  const [sourceLoading] = useState(false);
   const [adaptationContent, setAdaptationContent] = useState<AdaptationContent | null>(null);
   const [adaptationQuiz, setAdaptationQuiz] = useState<StoryQuizData | null>(null);
   const [adaptationNote, setAdaptationNote] = useState<string | null>(null);
@@ -92,7 +87,7 @@ export function StoryViewerContent({
       .slice(0, 2)
       .map((verse) => verse.text)
       .join(' ') ||
-    (sourceLoading ? 'Carregando texto bíblico...' : 'Abra para ver o texto bíblico.');
+    `Referência bíblica: ${passageReference}. O texto integral não é exibido aqui — a história adaptada segue esta passagem.`;
   const ageTier = useMemo(() => getAgeTierFromPreferences(preferences), [preferences]);
   const fallbackQuiz = useMemo(() => getStoryQuiz(story.id, ageTier), [story.id, ageTier]);
   const quiz = adaptationQuiz ?? fallbackQuiz;
@@ -106,50 +101,13 @@ export function StoryViewerContent({
   useEffect(() => {
     if (initialSourceVerses && initialSourceVerses.length > 0) {
       setSourceVerses(initialSourceVerses);
-      setSourceLoading(false);
       return;
     }
 
     if (passage.verses.length > 0) {
       setSourceVerses(toBibleVerseLines(passage.verses, passageRange.verseFrom));
-      setSourceLoading(false);
-      return;
     }
-
-    let cancelled = false;
-
-    async function loadSourceText() {
-      setSourceLoading(true);
-      try {
-        const result = await getBiblePassageTextAction({
-          passageSlug: passage.id,
-          verseFrom: passageRange.verseFrom,
-          verseTo: passageRange.verseTo,
-          bibleVersionId: preferences.bibleVersionId,
-        });
-
-        if (cancelled) return;
-
-        if (result.ok && result.data?.verses.length) {
-          setSourceVerses(result.data.verses);
-        }
-      } finally {
-        if (!cancelled) setSourceLoading(false);
-      }
-    }
-
-    void loadSourceText();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    initialSourceVerses,
-    passage.id,
-    passage.verses,
-    passageRange.verseFrom,
-    passageRange.verseTo,
-    preferences.bibleVersionId,
-  ]);
+  }, [initialSourceVerses, passage.verses, passageRange.verseFrom]);
 
   useEffect(() => {
     if (!adaptationId) {

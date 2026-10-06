@@ -25,8 +25,8 @@ export async function authorizeCredentials(
 
   if (request) {
     const ip = getClientIp(request);
-    const ipLimit = checkRateLimit(`login:ip:${ip}`, 20, 15 * 60 * 1000);
-    const emailLimit = checkRateLimit(`login:email:${normalizedEmail}`, 10, 15 * 60 * 1000);
+    const ipLimit = await checkRateLimit(`login:ip:${ip}`, 20, 15 * 60 * 1000);
+    const emailLimit = await checkRateLimit(`login:email:${normalizedEmail}`, 10, 15 * 60 * 1000);
     if (!ipLimit.allowed || !emailLimit.allowed) {
       return null;
     }

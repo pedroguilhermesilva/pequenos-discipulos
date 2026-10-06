@@ -16,7 +16,7 @@ const GENERIC_REGISTER_FAILURE =
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);
-    const limit = checkRateLimit(`register:ip:${ip}`, 10, 60 * 60 * 1000);
+    const limit = await checkRateLimit(`register:ip:${ip}`, 10, 60 * 60 * 1000);
     if (!limit.allowed) {
       return NextResponse.json({ ok: false, message: GENERIC_REGISTER_FAILURE }, { status: 429 });
     }

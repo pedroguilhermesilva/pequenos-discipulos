@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
 import { LocalStorageProvider } from '@/lib/providers/local/local-storage.provider';
-import { LocalBibleTextProvider } from '@/lib/providers/local/local-bible-text.provider';
 import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
@@ -13,7 +12,6 @@ import { PrismaCollectionRepository } from '@/lib/repositories/prisma/prisma-col
 import { PrismaUsageRepository } from '@/lib/repositories/prisma/prisma-usage.repository';
 import { PrismaUserStoryRepository } from '@/lib/repositories/prisma/prisma-user-story.repository';
 import { PrismaVoteRepository } from '@/lib/repositories/prisma/prisma-vote.repository';
-import { BibleTextService } from '@/lib/services/bible-text.service';
 import { ChildProfileService } from '@/lib/services/child-profile.service';
 import { FavoritesService } from '@/lib/services/favorites.service';
 import { LibraryService } from '@/lib/services/library.service';
@@ -30,8 +28,6 @@ const userStoryRepo = new PrismaUserStoryRepository(prisma);
 const collectionRepo = new PrismaCollectionRepository(prisma);
 const usageRepo = new PrismaUsageRepository(prisma);
 const voteRepo = new PrismaVoteRepository(prisma);
-
-const bibleProvider = new LocalBibleTextProvider();
 
 const llmKey = process.env.LLM_API_KEY?.trim() ?? '';
 const llmBaseUrl = process.env.LLM_BASE_URL?.trim() || 'https://api.openai.com/v1';
@@ -77,7 +73,6 @@ const sfxProvider = useAudioStub
 
 const storageProvider = new LocalStorageProvider();
 
-const bibleTextService = new BibleTextService(bibleProvider);
 const planLimitsService = new PlanLimitsService(usageRepo, childProfileRepo);
 const audioService = new AudioService(prisma, ttsProvider, sfxProvider, storageProvider);
 const storyCacheService = new StoryCacheService(prisma);
@@ -93,14 +88,12 @@ export const container = {
     votes: voteRepo,
   },
   providers: {
-    bible: bibleProvider,
     llm: llmProvider,
     tts: ttsProvider,
     sfx: sfxProvider,
     storage: storageProvider,
   },
   services: {
-    bibleText: bibleTextService,
     planLimits: planLimitsService,
     storyCache: storyCacheService,
     storyGeneration: new StoryGenerationService(
@@ -110,7 +103,6 @@ export const container = {
       usageRepo,
       childProfileRepo,
       planLimitsService,
-      bibleTextService,
       llmProvider,
       audioService,
       storyCacheService
@@ -119,7 +111,7 @@ export const container = {
     favorites: new FavoritesService(userStoryRepo),
     childProfiles: new ChildProfileService(childProfileRepo, planLimitsService),
     quiz: new QuizService(adaptationRepo),
-    votes: new VoteService(voteRepo, adaptationRepo),
+    votes: new VoteService(voteRepo, adaptationRepo, userStoryRepo),
     audio: audioService,
     collections: collectionRepo,
   },

@@ -1,32 +1,32 @@
-# Bíblia em português (dados estáticos)
+# Índice bíblico (metadados estáticos)
 
-## Tradução
+Este diretório contém **apenas metadados** para seleção e validação de passagens — **sem texto dos versículos** no repositório.
 
-**Almeida 1911** — *Bíblia Sagrada Traduzida em Portuguez por João Ferreira de Almeida* (reimpressão de 1911).
+## Conteúdo de `index.json`
 
-## Fonte dos dados
+Para cada um dos 66 livros (ordem protestante canónica):
 
-Pacote **ALM1911.json** do repositório [damarals/biblias](https://github.com/damarals/biblias) (release v1.0.0).
+| Campo | Descrição |
+|-------|-----------|
+| `id` / `slug` | Identificador estável (ex.: `mateus`, `genesis`) |
+| `name` | Nome em português (ex.: Mateus, Gênesis) |
+| `abbrev` | Abreviatura (ex.: Mt, Gn) |
+| `testament` | `old` ou `new` |
+| `order` | Ordem canónica (1–66) |
+| `versesPerChapter` | Array com o número de versículos por capítulo |
 
-## Licença do texto bíblico
+A UI usa estes dados para o utilizador escolher livro, capítulo e intervalo de versículos (ex.: Mateus 1:20 ou Mateus 2:1–3) e validar o intervalo.
 
-**Domínio público.** A tradução de João Ferreira de Almeida (edição de 1911) é uma obra histórica em domínio público; o repositório damarals/biblias marca esta versão com † (domínio público) como redistribuível livremente.
+A geração de histórias envia **apenas a referência** (livro, capítulo, versos) ao LLM, que narra a passagem a partir do seu próprio conhecimento bíblico.
 
-Referências adicionais:
+## Fonte dos dados de contagem
 
-- [CrossWire PorAlmeida1911](https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=PorAlmeida1911) — módulo SWORD, GPL (empacotamento); texto Almeida 1911.
-- [bibliaalmeida.com](https://bibliaalmeida.com/) — confirma domínio público integral da Almeida 1911.
+As contagens de versículos por capítulo derivam do pacote **ALM1911** do repositório [damarals/biblias](https://github.com/damarals/biblias) (release v1.0.0). **Contagens de versículos não são protegidas por direitos de autor** — apenas o texto integral o seria.
 
-## Licença do ficheiro JSON
+## Tradução de referência
+
+**Almeida 1911** — referência usada na app para identificar a versão (`alm1911`), sem armazenar o texto completo.
+
+## Licença do empacotamento
 
 O formato/empacotamento no repositório damarals/biblias está sob **MIT License**.
-
-## Formato
-
-Array de 66 livros (ordem protestante canónica), cada um com:
-
-```json
-{ "abbrev": "Mt", "chapters": [["v1 cap1", "v2 cap1"], ["v1 cap2"]] }
-```
-
-Os versículos são indexados a partir de 1 dentro de cada capítulo.

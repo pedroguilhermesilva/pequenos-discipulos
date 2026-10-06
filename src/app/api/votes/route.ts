@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireCurrentUser } from '@/lib/auth/get-current-user';
 import { verifyParentGateToken } from '@/lib/auth/parent-gate';
 import { container } from '@/lib/container';
-import { DomainError } from '@/lib/domain/errors';
+import { DomainError, UnauthorizedError } from '@/lib/domain/errors';
 
 const voteSchema = z.object({
   adaptationId: z.string().min(1),
@@ -26,12 +26,12 @@ export async function POST(request: Request) {
     const action = body.action ?? 'vote';
 
     if (action === 'family_approve') {
-      const data = await container.services.votes.approveWithFamily(body.adaptationId);
+      const data = await container.services.votes.approveWithFamily(user.id, body.adaptationId);
       return NextResponse.json({ ok: true, data });
     }
 
     if (action === 'share_community') {
-      const data = await container.services.votes.shareWithCommunity(body.adaptationId);
+      const data = await container.services.votes.shareWithCommunity(user.id, body.adaptationId);
       return NextResponse.json({ ok: true, data });
     }
 
@@ -43,6 +43,13 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, code: 'VALIDATION_ERROR', message: 'Dados inválidos.' },
         { status: 400 }
+      );
+    }
+
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json(
+        { ok: false, code: error.code, message: error.message },
+        { status: 403 }
       );
     }
 

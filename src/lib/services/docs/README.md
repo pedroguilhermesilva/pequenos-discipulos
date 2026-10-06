@@ -7,7 +7,7 @@ Camada de negócio da aplicação (`src/lib/services/`).
 - **NextAuth:** `src/auth.ts` — Credentials (email/senha) + Google opcional.
 - **Sessão nas APIs:** `requireCurrentUser()` em `src/lib/auth/get-current-user.ts`.
 - **Parent gate:** `src/lib/auth/parent-gate.ts` + `POST /api/parent-gate/verify` — cookie JWT antes de votar/aprovar.
-- **Rate limit:** `src/lib/rate-limit.ts` — login (`/api/auth/login`), registo (`/api/auth/register`).
+- **Rate limit:** `src/lib/rate-limit.ts` — login (`/api/auth/login`), registo (`/api/auth/register`). Upstash Redis quando `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` estão definidos; fallback in-memory em dev.
 
 ## StoryGenerationService
 
@@ -17,19 +17,19 @@ Gera ou reutiliza adaptações de passagens bíblicas.
 
 **Fluxo:**
 
-1. Até 3 visualizações cache de adaptações de **outros** utilizadores (mesma chave de passagem/idade/estilo).
-2. Se esgotado, gera via LLM e regista `createdByUserId`.
+1. Até 3 visualizações cache de adaptações de **outros** utilizadores (mesma chave de passagem/idade/estilo), servidas pela **maior `voteScore`** (empate → aleatório).
+2. Se esgotado, gera via LLM com **apenas a referência bíblica** (sem texto integral no repo).
 3. Regista `AdaptationView` para tracking.
 
 **API:** `POST /api/stories/generate` (autenticada).
 
 ## StoryCacheService
 
-Seleção aleatória de adaptações já existentes, excluindo as do próprio utilizador e as já vistas.
+Seleção de adaptações já existentes por `voteScore`, excluindo as do próprio utilizador e as já vistas.
 
-## BibleTextService
+## Índice bíblico
 
-Texto bíblico via `LocalBibleTextProvider` (ALM1911 embutida).
+Metadados em `data/bible/index.json` — livros, abreviações, testamentos, versículos por capítulo. Usado pela UI para seleção/validação; **não** inclui texto dos versículos.
 
 ## ChildProfileService
 
@@ -41,6 +41,9 @@ CRUD de perfis de criança; limites por plano via `PlanLimitsService`.
 
 Votos e aprovação familiar — **sempre** atrás de parent gate validado no servidor (`/api/votes`).
 
+- **Voto:** permitido em adaptações comunitárias de outros utilizadores; um voto por utilizador/adaptação (`AdaptationVote` unique).
+- **Aprovar/partilhar:** apenas adaptações da família (criadas pelo utilizador ou ligadas via `UserStory`).
+
 ## Variáveis de ambiente relevantes
 
 | Variável | Uso |
@@ -50,3 +53,4 @@ Votos e aprovação familiar — **sempre** atrás de parent gate validado no se
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth opcional |
 | `LLM_*` | Geração de histórias |
 | `ELEVENLABS_*` / `TTS_USE_STUB` | Áudio |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limit partilhado (prod) |

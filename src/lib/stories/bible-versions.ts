@@ -1,6 +1,6 @@
 import { LOCAL_BIBLE_VERSION_ID } from '@/lib/bible/constants';
 
-/** Única versão disponível — Almeida 1911 em domínio público, embutida localmente. */
+/** Única versão disponível — Almeida 1911 (referência; sem texto integral no repo). */
 export const DEFAULT_BIBLE_VERSION_ID = LOCAL_BIBLE_VERSION_ID;
 
 export const bibleVersions = [

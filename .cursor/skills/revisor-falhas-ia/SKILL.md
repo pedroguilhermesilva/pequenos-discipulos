@@ -283,7 +283,7 @@ Neste produto, paths de áudio (`audioPath`, `narrationAudioPath`) e URLs estát
 **Passa**
 
 - `fetch` server-side só para APIs conhecidas: OpenAI (`LLM_BASE_URL`), ElevenLabs (`ELEVENLABS_BASE_URL`), endpoints internos fixos.
-- Texto bíblico: ficheiro local `data/bible/ALM1911.json` via `LocalBibleTextProvider` — sem HTTP a URL de utilizador.
+- Índice bíblico: metadados estáticos em `data/bible/index.json` — sem fetch HTTP a URL de utilizador.
 
 **Falha (SSRF de verdade)**
 
@@ -413,6 +413,36 @@ Cruzar: cada rota pública de auth/registo tem de usar `checkRateLimit`. Login a
 
 ---
 
+## 12. CSP permissiva (`unsafe-inline` / `unsafe-eval`)
+
+Além dos headers mínimos (falha 9), inspecionar a **política CSP** em `next.config.ts` `headers()`, `src/proxy.ts`, ou `vercel.json`.
+
+**Passa**
+
+- `script-src` sem `'unsafe-inline'` **e** sem `'unsafe-eval'`, **ou**
+- Nonce/hash explícito para scripts inline (Next.js 16: nonce via middleware/proxy — ver docs oficiais).
+
+**Falha (Média)**
+
+- `'unsafe-inline'` e/ou `'unsafe-eval'` em `script-src` sem estratégia de nonce ou hash.
+- Wildcards permissivos em `script-src` (ex.: `*` ou `https:`) em área autenticada.
+- CSP ausente quando a app serve HTML com scripts (Alta — ver também falha 9).
+
+**Onde procurar**
+
+```bash
+rg -n "Content-Security-Policy|script-src|unsafe-inline|unsafe-eval" next.config.ts src/proxy.ts vercel.json
+rg -n "nonce|strict-dynamic" next.config.ts src/proxy.ts src/middleware.ts
+```
+
+**Correcção recomendada (Next.js 16)**
+
+- Gerar nonce por pedido em `src/proxy.ts` (ou middleware) e injectar na CSP.
+- Remover `'unsafe-inline'` / `'unsafe-eval'` de `script-src` quando nonce estiver activo.
+- Referência: [Next.js Content Security Policy](https://nextjs.org/docs/app/guides/content-security-policy).
+
+---
+
 ## Ordem de trabalho
 
 Copiar e ir marcando:
@@ -429,7 +459,8 @@ Copiar e ir marcando:
 - [ ] 9. Headers (CSP, nosniff, referrer, frame, HSTS)
 - [ ] 10. Open redirect (callbackUrl allowlist)
 - [ ] 11. Rate limit no login e registo público
-- [ ] Relatório com as 11 falhas (incluindo as sem findings)
+- [ ] 12. CSP permissiva (unsafe-inline/eval, nonce, wildcards)
+- [ ] Relatório com as 12 falhas (incluindo as sem findings)
 ```
 
 1. Listar superfície (schema, services, repositories, actions, APIs, auth, parent gate, geração/cache, áudio, env, login, next.config, proxy, rate-limit) no âmbito.

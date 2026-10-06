@@ -25,17 +25,21 @@ npm run dev
 
 Ver `.env.example`. Obrigatórias em produção: `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_URL`.
 
+Opcionais em produção: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limit partilhado).
+
 ## Bíblia
 
-Texto estático **Almeida 1911 (ALM1911)** em `data/bible/ALM1911.json` — domínio público ([damarals/biblias](https://github.com/damarals/biblias)). Provider: `LocalBibleTextProvider`.
+Índice estático em `data/bible/index.json` — nomes, abreviações, testamentos, contagens de versículos por capítulo. **Sem texto integral no repositório.** A geração envia apenas a referência (livro/capítulo/versos) ao LLM.
 
 ## Geração de histórias
 
-`StoryGenerationService`: cache-first (até 3 versões de outros utilizadores) → LLM. Modo `regenerate` via botão “Gerar novamente”.
+`StoryGenerationService`: cache-first (até 3 versões de outros utilizadores, ordenadas por `voteScore`) → LLM. Modo `regenerate` via botão “Gerar novamente”.
 
 ## Testes locais (dev)
 
 Utilizador seed: `dev@pequenos-discipulos.local` / `devpassword123` (após `npm run db:seed`).
+
+Roteiro manual: `scripts/manual-test-pr1.md`.
 
 ## Documentação de módulos
 

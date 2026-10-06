@@ -6,13 +6,12 @@ describe('StoryGenerationService cache-first behavior', () => {
   const userStories = { upsertFromAdaptation: vi.fn() };
   const childProfiles = { update: vi.fn() };
   const planLimits = { assertCanGenerate: vi.fn() };
-  const bibleText = { getPassageText: vi.fn() };
   const llm = { generateStory: vi.fn() };
   const audio = { prepareAdaptationAudio: vi.fn() };
   const storyCache = {
     countCachedViewsShown: vi.fn(),
     shouldTryCachedView: vi.fn(),
-    pickRandomUnseenCachedAdaptation: vi.fn(),
+    pickHighestScoredUnseenCachedAdaptation: vi.fn(),
     recordView: vi.fn(),
     getNextVersionNumber: vi.fn(),
   };
@@ -41,7 +40,6 @@ describe('StoryGenerationService cache-first behavior', () => {
       {} as never,
       childProfiles as never,
       planLimits as never,
-      bibleText as never,
       llm as never,
       audio as never,
       storyCache as never
@@ -60,7 +58,7 @@ describe('StoryGenerationService cache-first behavior', () => {
   };
 
   it('serves a cached adaptation from another user without calling the LLM', async () => {
-    vi.mocked(storyCache.pickRandomUnseenCachedAdaptation).mockResolvedValue({
+    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
       id: 'adaptation-cached',
       title: 'História em cache',
     } as never);
@@ -79,15 +77,9 @@ describe('StoryGenerationService cache-first behavior', () => {
     );
   });
 
-  it('generates with LLM when no cached adaptation is available', async () => {
-    vi.mocked(storyCache.pickRandomUnseenCachedAdaptation).mockResolvedValue(null);
+  it('generates with LLM using only the biblical reference when no cache is available', async () => {
+    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue(null);
     vi.mocked(planLimits.assertCanGenerate).mockResolvedValue(undefined);
-    vi.mocked(bibleText.getPassageText).mockResolvedValue({
-      rawText: 'Texto bíblico',
-      reference: 'Mateus 2:1-3',
-      verses: [{ number: 1, text: 'Verso 1' }],
-      bibleVersionId: 'alm1911',
-    });
     vi.mocked(llm.generateStory).mockResolvedValue({
       title: 'Nova história',
       content: { pages: [{ paragraphs: [[{ type: 'text', value: 'Olá' }]] }] },
@@ -109,6 +101,11 @@ describe('StoryGenerationService cache-first behavior', () => {
     });
 
     expect(result.adaptationId).toBe('adapt-new');
+    expect(llm.generateStory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reference: expect.stringMatching(/Mateus/i),
+      })
+    );
     expect(llm.generateStory).toHaveBeenCalledOnce();
     expect(planLimits.assertCanGenerate).toHaveBeenCalledOnce();
   });
@@ -117,12 +114,6 @@ describe('StoryGenerationService cache-first behavior', () => {
     vi.mocked(storyCache.countCachedViewsShown).mockResolvedValue(3);
     vi.mocked(storyCache.shouldTryCachedView).mockReturnValue(false);
     vi.mocked(planLimits.assertCanGenerate).mockResolvedValue(undefined);
-    vi.mocked(bibleText.getPassageText).mockResolvedValue({
-      rawText: 'Texto',
-      reference: 'Mateus 2:1-3',
-      verses: [{ number: 1, text: 'Verso 1' }],
-      bibleVersionId: 'alm1911',
-    });
     vi.mocked(llm.generateStory).mockResolvedValue({
       title: 'Quarta versão',
       content: { pages: [{ paragraphs: [[{ type: 'text', value: 'Olá' }]] }] },
@@ -142,7 +133,7 @@ describe('StoryGenerationService cache-first behavior', () => {
       payload: { ...payload, mode: 'regenerate', currentAdaptationId: 'adapt-3' },
     });
 
-    expect(storyCache.pickRandomUnseenCachedAdaptation).not.toHaveBeenCalled();
+    expect(storyCache.pickHighestScoredUnseenCachedAdaptation).not.toHaveBeenCalled();
     expect(llm.generateStory).toHaveBeenCalledOnce();
   });
 });
