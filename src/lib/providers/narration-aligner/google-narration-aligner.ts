@@ -18,7 +18,8 @@ const SPEECH_SYNC_MAX_SECONDS = 55;
 export type GoogleNarrationAlignerConfig = {
   apiKey?: string;
   credentialsJson?: string;
-  projectId: string;
+  /** Obrigatório só no momento do alinhamento (Speech-to-Text v2 usa o projeto no URL). */
+  projectId?: string;
   languageCode: string;
 };
 
@@ -77,8 +78,11 @@ export class GoogleNarrationAligner implements NarrationAligner {
       };
     }
 
-    if (!this.config.projectId) {
-      console.error('[GoogleNarrationAligner] GOOGLE_CLOUD_PROJECT_ID em falta; usando tempos estimados.');
+    const projectId = this.config.projectId?.trim();
+    if (!projectId) {
+      console.error(
+        '[GoogleNarrationAligner] O alinhamento com Google Speech-to-Text precisa de GOOGLE_CLOUD_PROJECT_ID (ou project_id em GOOGLE_TTS_CREDENTIALS_JSON). Sem ele, usamos tempos estimados para destacar as palavras. Defina a variável ou use NARRATION_ALIGNER=groq.'
+      );
       return {
         alignment: estimateAlignmentFromDuration(input.text, estimatedDurationSeconds),
         strategy: 'estimated',
@@ -90,15 +94,15 @@ export class GoogleNarrationAligner implements NarrationAligner {
       const auth = await resolveGoogleTtsAuthorization(
         this.config.apiKey,
         this.config.credentialsJson,
-        this.config.projectId
+        projectId
       );
-      const url = `https://speech.googleapis.com/v2/projects/${encodeURIComponent(this.config.projectId)}/locations/global/recognizers/_:recognize${auth.urlSuffix}`;
+      const url = `https://speech.googleapis.com/v2/projects/${encodeURIComponent(projectId)}/locations/global/recognizers/_:recognize${auth.urlSuffix}`;
 
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           ...auth.headers,
-          'x-goog-user-project': this.config.projectId,
+          'x-goog-user-project': projectId,
         },
         body: JSON.stringify({
           config: {

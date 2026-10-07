@@ -130,4 +130,54 @@ describe('GeminiFlashTtsProvider', () => {
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
   });
+
+  it('synthesizes with API key and no project ID, without x-goog-user-project header', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ audioContent: Buffer.from('audio').toString('base64') }),
+    });
+
+    const provider = new GeminiFlashTtsProvider(
+      {
+        apiKey: 'test-key',
+        modelName: 'gemini-2.5-flash-tts',
+        voiceName: 'Leda',
+        languageCode: 'pt-BR',
+        stylePrompt: 'Narradora calorosa.',
+      },
+      createAlignerStub({ provider: 'stub', strategy: 'none', alignment: null })
+    );
+
+    const result = await provider.generateSpeech({ text: 'Olá Deus', blockKey: 'b' });
+
+    expect(result.buffer.length).toBeGreaterThan(0);
+    const [, ttsInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = ttsInit.headers as Record<string, string>;
+    expect(headers['x-goog-user-project']).toBeUndefined();
+  });
+
+  it('sends x-goog-user-project header when project ID is known', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ audioContent: Buffer.from('audio').toString('base64') }),
+    });
+
+    const provider = new GeminiFlashTtsProvider(
+      {
+        apiKey: 'test-key',
+        projectId: 'demo-project',
+        modelName: 'gemini-2.5-flash-tts',
+        voiceName: 'Leda',
+        languageCode: 'pt-BR',
+        stylePrompt: 'Narradora calorosa.',
+      },
+      createAlignerStub({ provider: 'stub', strategy: 'none', alignment: null })
+    );
+
+    await provider.generateSpeech({ text: 'Olá Deus', blockKey: 'b' });
+
+    const [, ttsInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = ttsInit.headers as Record<string, string>;
+    expect(headers['x-goog-user-project']).toBe('demo-project');
+  });
 });

@@ -75,14 +75,14 @@ Alternativa mais segura: **service account** com `GOOGLE_TTS_CREDENTIALS_JSON` (
 | Variável | Obrigatória | Exemplo |
 |----------|-------------|---------|
 | `GOOGLE_TTS_API_KEY` | sim* | `AIza…` |
-| `GOOGLE_CLOUD_PROJECT_ID` | sim (Gemini) | `meu-projeto-123` |
+| `GOOGLE_CLOUD_PROJECT_ID` | só com `NARRATION_ALIGNER=google` (sem ele: tempos estimados) | `meu-projeto-123` |
 | `GOOGLE_TTS_PROVIDER` | não | `gemini` |
 | `GOOGLE_TTS_MODEL` | não | `gemini-2.5-flash-tts` |
 | `GOOGLE_TTS_GEMINI_VOICE` | não | `Leda` |
 | `GOOGLE_TTS_STYLE_PROMPT` | não | narradora calorosa… |
 | `GOOGLE_TTS_LANGUAGE` | não | `pt-BR` |
 | `NARRATION_ALIGNER` | não | `google` |
-| `GROQ_API_KEY` | sim (se `groq`) | `gsk_…` |
+| `GROQ_API_KEY` | sim (se `groq`; sem ela cai no alinhador Google) | `gsk_…` |
 | `TTS_USE_STUB` | não | `false` |
 
 \* Ou `GOOGLE_TTS_CREDENTIALS_JSON` (neste caso `project_id` no JSON substitui `GOOGLE_CLOUD_PROJECT_ID`).

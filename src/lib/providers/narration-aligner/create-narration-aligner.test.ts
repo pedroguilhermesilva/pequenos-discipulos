@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createNarrationAligner,
   parseNarrationAligner,
@@ -30,12 +30,21 @@ describe('createNarrationAligner', () => {
     expect(aligner.id).toBe('groq');
   });
 
-  it('throws when Groq is selected without API key', () => {
+  it('falls back to Google aligner (no throw) when Groq is selected without API key', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const aligner = createNarrationAligner(
+      env({ NARRATION_ALIGNER: 'groq' }),
+      { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
+    );
+
+    expect(aligner).toBeInstanceOf(GoogleNarrationAligner);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('GROQ_API_KEY'));
+    warnSpy.mockRestore();
+  });
+
+  it('does not throw when Google aligner is created without project ID', () => {
     expect(() =>
-      createNarrationAligner(
-        env({ NARRATION_ALIGNER: 'groq' }),
-        { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
-      )
-    ).toThrow(/GROQ_API_KEY/);
+      createNarrationAligner(env({}), { apiKey: 'test-key', languageCode: 'pt-BR' })
+    ).not.toThrow();
   });
 });

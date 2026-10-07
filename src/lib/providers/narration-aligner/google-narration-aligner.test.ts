@@ -71,4 +71,22 @@ describe('GoogleNarrationAligner', () => {
     expect(result.strategy).toBe('provider');
     expect(result.alignment?.words).toEqual(['Olá', 'Deus']);
   });
+
+  it('falls back to estimated timings with a clear Portuguese error when project ID is missing (call time only)', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const aligner = new GoogleNarrationAligner({ apiKey: 'test-key', languageCode: 'pt-BR' });
+
+    const result = await aligner.align({
+      text: 'Olá Deus',
+      audioBuffer: Buffer.from('audio'),
+      contentType: 'audio/mpeg',
+      languageCode: 'pt-BR',
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.strategy).toBe('estimated');
+    expect(result.alignment?.words).toEqual(['Olá', 'Deus']);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('GOOGLE_CLOUD_PROJECT_ID'));
+    errorSpy.mockRestore();
+  });
 });

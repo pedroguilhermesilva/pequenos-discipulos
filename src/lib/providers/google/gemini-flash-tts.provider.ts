@@ -15,7 +15,8 @@ const SYNTHESIZE_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 export interface GeminiFlashTtsConfig {
   apiKey?: string;
   credentialsJson?: string;
-  projectId: string;
+  /** Opcional: só enviado em x-goog-user-project quando conhecido. */
+  projectId?: string;
   modelName: string;
   voiceName: string;
   languageCode: string;

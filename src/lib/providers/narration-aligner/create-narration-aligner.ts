@@ -26,14 +26,17 @@ export function createNarrationAligner(
 
   if (kind === 'groq') {
     const apiKey = env.GROQ_API_KEY?.trim();
-    if (!apiKey) {
-      throw new Error('NARRATION_ALIGNER=groq exige GROQ_API_KEY.');
+    if (apiKey) {
+      return new GroqWhisperNarrationAligner({
+        apiKey,
+        model: env.GROQ_WHISPER_MODEL?.trim() || DEFAULT_GROQ_WHISPER_MODEL,
+      });
     }
 
-    return new GroqWhisperNarrationAligner({
-      apiKey,
-      model: env.GROQ_WHISPER_MODEL?.trim() || DEFAULT_GROQ_WHISPER_MODEL,
-    });
+    // Não lançar erro aqui: isto corre na avaliação do módulo (build da Vercel).
+    console.warn(
+      '[createNarrationAligner] NARRATION_ALIGNER=groq mas GROQ_API_KEY não está definida; usando o alinhador Google (ou tempos estimados).'
+    );
   }
 
   return new GoogleNarrationAligner(googleConfig);

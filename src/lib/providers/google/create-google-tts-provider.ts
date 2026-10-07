@@ -78,12 +78,8 @@ export function createGoogleTtsProvider(
     });
   }
 
-  if (!config.projectId) {
-    throw new Error(
-      'Gemini Flash TTS exige GOOGLE_CLOUD_PROJECT_ID ou project_id em GOOGLE_TTS_CREDENTIALS_JSON.'
-    );
-  }
-
+  // GOOGLE_CLOUD_PROJECT_ID é opcional: com API key o Gemini TTS funciona sem ele.
+  // Nunca validar aqui — este código corre na avaliação do módulo (build da Vercel).
   const aligner =
     narrationAligner ??
     createNarrationAligner(env, {
