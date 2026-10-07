@@ -1,17 +1,22 @@
 import { createHash } from 'node:crypto';
 import type { PassageAdaptation, PrismaClient } from '@prisma/client';
 import type { AdaptationLookupKey } from '@/lib/repositories/interfaces/adaptation.repository';
+import {
+  getBibleVersionIdVariants,
+  resolveBibleVersionId,
+} from '@/lib/stories/bible-versions';
 
 export const MAX_CACHED_VIEWS_PER_REQUEST = 3;
 
 export type AdaptationViewSource = 'cached' | 'generated';
 
 export function buildAdaptationCacheKey(key: AdaptationLookupKey): string {
+  const bibleVersionId = resolveBibleVersionId(key.bibleVersionId);
   return createHash('sha256')
     .update(
       [
         key.passageId,
-        key.bibleVersionId,
+        bibleVersionId,
         String(key.verseFrom),
         String(key.verseTo),
         key.ageTier,
@@ -98,10 +103,11 @@ export class StoryCacheService {
     );
     const exclude = new Set([...seenIds, ...(params.excludeAdaptationIds ?? [])]);
 
+    const bibleVersionIds = getBibleVersionIdVariants(params.lookupKey.bibleVersionId);
     const candidates = await this.prisma.passageAdaptation.findMany({
       where: {
         passageId: params.lookupKey.passageId,
-        bibleVersionId: params.lookupKey.bibleVersionId,
+        bibleVersionId: { in: bibleVersionIds },
         verseFrom: params.lookupKey.verseFrom,
         verseTo: params.lookupKey.verseTo,
         ageTier: params.lookupKey.ageTier,
@@ -174,10 +180,11 @@ export class StoryCacheService {
   }
 
   async getNextVersionNumber(lookupKey: AdaptationLookupKey): Promise<number> {
+    const bibleVersionIds = getBibleVersionIdVariants(lookupKey.bibleVersionId);
     const aggregate = await this.prisma.passageAdaptation.aggregate({
       where: {
         passageId: lookupKey.passageId,
-        bibleVersionId: lookupKey.bibleVersionId,
+        bibleVersionId: { in: bibleVersionIds },
         verseFrom: lookupKey.verseFrom,
         verseTo: lookupKey.verseTo,
         ageTier: lookupKey.ageTier,

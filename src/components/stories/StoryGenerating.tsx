@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ContentType } from '@/lib/stories/types';
 import { contentTypeConfig } from '@/lib/stories/content-type';
 import type { AgeTier } from '@/lib/stories/age-tiers';
@@ -24,7 +24,8 @@ function generationRequestKey(
   ageTier: AgeTier,
   prefs: UserPreferences,
   mode: 'initial' | 'regenerate',
-  currentAdaptationId?: string
+  currentAdaptationId: string | undefined,
+  idempotencyKey: string
 ) {
   return [
     passageSlug,
@@ -36,7 +37,15 @@ function generationRequestKey(
     prefs.languageStyle,
     mode,
     currentAdaptationId ?? '',
+    idempotencyKey,
   ].join('|');
+}
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 interface StoryGeneratingProps {
@@ -68,11 +77,14 @@ export function StoryGenerating({
 }: StoryGeneratingProps) {
   const config = contentTypeConfig[contentType];
   const [error, setError] = useState<string | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const prefs: UserPreferences = { ...DEFAULT_PREFERENCES, ...preferences };
     const ageTier: AgeTier = getAgeTierFromPreferences(prefs);
+    const idempotencyKey = idempotencyKeyRef.current ?? createIdempotencyKey();
+    idempotencyKeyRef.current = idempotencyKey;
 
     async function run() {
       try {
@@ -84,7 +96,8 @@ export function StoryGenerating({
           ageTier,
           prefs,
           mode,
-          currentAdaptationId
+          currentAdaptationId,
+          idempotencyKey
         );
         let pending = inFlightGenerations.get(requestKey);
         if (!pending) {
@@ -102,6 +115,7 @@ export function StoryGenerating({
               childProfileId,
               mode,
               currentAdaptationId,
+              idempotencyKey,
             }),
           })
             .then((response) => response.json() as Promise<GenerationApiResult>)

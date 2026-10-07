@@ -18,6 +18,10 @@ import { createNewStoryPlaceholder, getNewStoryEntryHref, isNewStoryId } from '@
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 import { markProfileHasCreatedStory } from '@/lib/profiles/storage';
 import { getUserStoryAction } from '@/lib/stories/library-actions';
+import {
+  resolveDisplayedStory,
+  shouldShowDbLoading,
+} from '@/lib/stories/story-generation-state';
 import { buildStoryUrl, parseStorySearchParams } from '@/lib/stories/story-url';
 import type { ContentType } from '@/lib/stories/types';
 import Link from 'next/link';
@@ -94,8 +98,6 @@ function StoryPageInner() {
     };
   }, [isNewStory, storyId]);
 
-  const story = isNewStory ? newStory : dbStory ?? undefined;
-
   const urlParams = parseStorySearchParams(searchParams);
   const passageId = urlParams.passageId ?? dbPassageSlug;
   const contentType = urlParams.contentType ?? dbContentType;
@@ -103,18 +105,30 @@ function StoryPageInner() {
   const verseTo = urlParams.verseTo ?? dbVerseTo;
   const ready = urlParams.ready;
 
-  const passage = passageId ? getPassageById(passageId) : undefined;
-  const passageRange = passage ? resolvePassageRange(passage, verseFrom, verseTo) : null;
-
-  const hasExistingProgress = !isNewStory && (story?.progress ?? 0) > 0;
-  const skipGeneration = Boolean(ready || hasExistingProgress || (!isNewStory && story && passageId && contentType));
+  const provisionalStory = isNewStory ? newStory : dbStory ?? undefined;
+  const hasExistingProgress = !isNewStory && (provisionalStory?.progress ?? 0) > 0;
+  const skipGeneration = Boolean(
+    ready || hasExistingProgress || (!isNewStory && provisionalStory && passageId && contentType)
+  );
 
   const [generationComplete, setGenerationComplete] = useState(skipGeneration);
   const [generationMode, setGenerationMode] = useState<'initial' | 'regenerate'>('initial');
 
+  const story = resolveDisplayedStory({
+    isNewStory,
+    newStory,
+    dbStory,
+    generationComplete,
+  });
+
+  const passage = passageId ? getPassageById(passageId) : undefined;
+  const passageRange = passage ? resolvePassageRange(passage, verseFrom, verseTo) : null;
+
   useEffect(() => {
-    setGenerationComplete(skipGeneration);
-  }, [skipGeneration, passageId, contentType]);
+    if (skipGeneration) {
+      setGenerationComplete(true);
+    }
+  }, [skipGeneration]);
 
   const handleGenerationComplete = useCallback(
     (result: { userStoryId: string; adaptationId: string; title: string }) => {
@@ -159,7 +173,14 @@ function StoryPageInner() {
     }
   }, [passageId, passageRange, resolvedStoryId, router, storyId]);
 
-  if (dbLoading) {
+  if (
+    shouldShowDbLoading({
+      dbLoading,
+      ready: Boolean(ready),
+      generationComplete,
+      isNewStory,
+    })
+  ) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
         <div className="w-10 h-10 rounded-full border-2 border-vida/20 border-t-vida animate-spin" />

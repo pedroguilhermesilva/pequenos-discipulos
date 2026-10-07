@@ -35,6 +35,11 @@ export type GenerateStoryResult = {
   title: string;
 };
 
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
+const IDEMPOTENCY_PENDING_TITLE = '__pending__';
+const IDEMPOTENCY_WAIT_MS = 120_000;
+const IDEMPOTENCY_POLL_MS = 250;
+
 export class StoryGenerationService {
   constructor(
     private readonly prisma: PrismaClient,
@@ -54,6 +59,31 @@ export class StoryGenerationService {
     payload: GenerateStoryInput;
   }): Promise<GenerateStoryResult> {
     const payload = generateStoryInputSchema.parse(input.payload);
+
+    if (payload.idempotencyKey) {
+      const cachedResult = await this.findIdempotentResult(
+        input.userId,
+        payload.idempotencyKey
+      );
+      if (cachedResult) {
+        return cachedResult;
+      }
+
+      const claimed = await this.claimIdempotencyKey(
+        input.userId,
+        payload.idempotencyKey
+      );
+      if (!claimed) {
+        const resolved = await this.waitForIdempotentResult(
+          input.userId,
+          payload.idempotencyKey
+        );
+        if (resolved) {
+          return resolved;
+        }
+      }
+    }
+
     const selection = getSelectionFromPassageId(payload.passageSlug);
     if (!selection) {
       throw new AdaptationNotFound(`Passagem inválida: ${payload.passageSlug}`);
@@ -109,13 +139,15 @@ export class StoryGenerationService {
       });
 
       if (cached) {
-        return this.attachAdaptationToUser({
+        const result = await this.attachAdaptationToUser({
           userId: input.userId,
           childProfileId: payload.childProfileId,
           adaptation: cached,
           cacheKey,
           source: 'cached',
         });
+        await this.storeIdempotentResult(input.userId, payload.idempotencyKey, result);
+        return result;
       }
     }
 
@@ -199,7 +231,103 @@ export class StoryGenerationService {
     });
 
     await this.prepareAudio(adaptation.id);
+    await this.storeIdempotentResult(input.userId, payload.idempotencyKey, result);
     return result;
+  }
+
+  private async findIdempotentResult(
+    userId: string,
+    idempotencyKey?: string
+  ): Promise<GenerateStoryResult | null> {
+    if (!idempotencyKey) return null;
+
+    const existing = await this.prisma.storyGenerationIdempotency.findUnique({
+      where: {
+        userId_idempotencyKey: { userId, idempotencyKey },
+      },
+    });
+
+    if (
+      !existing ||
+      existing.expiresAt <= new Date() ||
+      existing.title === IDEMPOTENCY_PENDING_TITLE ||
+      !existing.adaptationId ||
+      !existing.userStoryId
+    ) {
+      return null;
+    }
+
+    return {
+      adaptationId: existing.adaptationId,
+      userStoryId: existing.userStoryId,
+      title: existing.title,
+    };
+  }
+
+  private async claimIdempotencyKey(
+    userId: string,
+    idempotencyKey: string
+  ): Promise<boolean> {
+    try {
+      await this.prisma.storyGenerationIdempotency.create({
+        data: {
+          userId,
+          idempotencyKey,
+          adaptationId: '',
+          userStoryId: '',
+          title: IDEMPOTENCY_PENDING_TITLE,
+          expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+        },
+      });
+      return true;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  private async waitForIdempotentResult(
+    userId: string,
+    idempotencyKey: string
+  ): Promise<GenerateStoryResult | null> {
+    const deadline = Date.now() + IDEMPOTENCY_WAIT_MS;
+
+    while (Date.now() < deadline) {
+      const resolved = await this.findIdempotentResult(userId, idempotencyKey);
+      if (resolved) {
+        return resolved;
+      }
+      await new Promise((resolve) => setTimeout(resolve, IDEMPOTENCY_POLL_MS));
+    }
+
+    return null;
+  }
+
+  private async storeIdempotentResult(
+    userId: string,
+    idempotencyKey: string | undefined,
+    result: GenerateStoryResult
+  ): Promise<void> {
+    if (!idempotencyKey) return;
+
+    await this.prisma.storyGenerationIdempotency.updateMany({
+      where: {
+        userId,
+        idempotencyKey,
+        title: IDEMPOTENCY_PENDING_TITLE,
+      },
+      data: {
+        adaptationId: result.adaptationId,
+        userStoryId: result.userStoryId,
+        title: result.title,
+        expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+      },
+    });
   }
 
   private async attachAdaptationToUser(params: {

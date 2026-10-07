@@ -20,6 +20,11 @@ describe('StoryGenerationService cache-first behavior', () => {
     passageAdaptation: { create: vi.fn() },
     readingProgress: { upsert: vi.fn() },
     usageEvent: { upsert: vi.fn() },
+    storyGenerationIdempotency: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn(),
+    },
     $transaction: vi.fn(),
   };
 
@@ -30,6 +35,9 @@ describe('StoryGenerationService cache-first behavior', () => {
     vi.mocked(userStories.upsertFromAdaptation).mockResolvedValue({ id: 'user-story-1' } as never);
     vi.mocked(storyCache.countCachedViewsShown).mockResolvedValue(0);
     vi.mocked(storyCache.shouldTryCachedView).mockReturnValue(true);
+    vi.mocked(prisma.storyGenerationIdempotency.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.storyGenerationIdempotency.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.storyGenerationIdempotency.updateMany).mockResolvedValue({ count: 1 } as never);
   });
 
   function buildService() {
@@ -113,6 +121,48 @@ describe('StoryGenerationService cache-first behavior', () => {
     expect(JSON.stringify(llmPayload)).not.toMatch(/child-1|Davi|Maria|João/i);
     expect(llmPayload).not.toHaveProperty('childName');
     expect(llmPayload).not.toHaveProperty('childProfileId');
+  });
+
+  it('serves another user draft from cache before calling the LLM', async () => {
+    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
+      id: 'adaptation-from-user-b',
+      title: 'Versão do utilizador B',
+    } as never);
+
+    const result = await buildService().generateOrReuse({
+      userId: 'user-a',
+      tier: 'free',
+      payload,
+    });
+
+    expect(result.adaptationId).toBe('adaptation-from-user-b');
+    expect(llm.generateStory).not.toHaveBeenCalled();
+    expect(storyCache.pickHighestScoredUnseenCachedAdaptation).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-a' })
+    );
+  });
+
+  it('returns the same result for duplicate requests with the same idempotency key', async () => {
+    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
+      id: 'adaptation-cached',
+      title: 'História em cache',
+    } as never);
+    vi.mocked(prisma.storyGenerationIdempotency.findUnique).mockResolvedValue({
+      adaptationId: 'adaptation-cached',
+      userStoryId: 'user-story-1',
+      title: 'História em cache',
+      expiresAt: new Date(Date.now() + 60_000),
+    } as never);
+
+    const result = await buildService().generateOrReuse({
+      userId: 'user-a',
+      tier: 'free',
+      payload: { ...payload, idempotencyKey: 'req-1' },
+    });
+
+    expect(result.adaptationId).toBe('adaptation-cached');
+    expect(llm.generateStory).not.toHaveBeenCalled();
+    expect(prisma.storyGenerationIdempotency.create).not.toHaveBeenCalled();
   });
 
   it('skips cache lookup after three cached views and generates anew', async () => {

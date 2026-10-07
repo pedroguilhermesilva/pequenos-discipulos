@@ -60,6 +60,23 @@ model User {
   votes            AdaptationVote[]
   createdAdaptations PassageAdaptation[] @relation("AdaptationCreator")
   adaptationViews  AdaptationView[]
+  storyGenerationIdempotencies StoryGenerationIdempotency[]
+}
+
+model StoryGenerationIdempotency {
+  id             String   @id @default(cuid())
+  userId         String
+  idempotencyKey String
+  adaptationId   String
+  userStoryId    String
+  title          String
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([expiresAt])
 }
 
 model Account {
