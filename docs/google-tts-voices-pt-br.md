@@ -1,68 +1,112 @@
 # Comparativo de vozes pt-BR — Google Cloud Text-to-Speech
 
-Pesquisa com base na [documentação oficial de preços](https://cloud.google.com/text-to-speech/pricing?hl=pt-BR), [vozes compatíveis](https://cloud.google.com/text-to-speech/docs/voices?hl=pt-br), [SSML / timepoints](https://cloud.google.com/text-to-speech/docs/ssml) e [Chirp 3 HD](https://cloud.google.com/text-to-speech/docs/chirp3-hd?hl=pt) (outubro de 2026).
+Pesquisa com base na [documentação oficial de preços](https://cloud.google.com/text-to-speech/pricing?hl=pt-BR), [Gemini-TTS](https://cloud.google.com/text-to-speech/docs/gemini-tts), [vozes compatíveis](https://cloud.google.com/text-to-speech/docs/voices?hl=pt-br), [SSML / timepoints](https://cloud.google.com/text-to-speech/docs/ssml) e [Speech-to-Text](https://cloud.google.com/speech-to-text/pricing?hl=pt-BR) (dez/2026).
 
 ## Resumo executivo
 
-| Família | Preço (após cota grátis) | Cota grátis/mês | Qualidade (narração infantil) | SSML `<mark>` + timepoints |
-|---------|--------------------------|-----------------|-------------------------------|----------------------------|
-| **Standard** | US$ 4 / 1M caracteres | 4M | Robótica; legado | **Sim** (v1beta1, `SSML_MARK`) |
-| **WaveNet** | US$ 4 / 1M caracteres | 4M | Boa, natural para histórias | **Sim** |
-| **Neural2** | US$ 16 / 1M caracteres | 1M | Muito boa, tom narrativo | **Sim** |
-| **Chirp 3: HD** | US$ 30 / 1M caracteres | 1M | Excelente, conversacional | **Não** — SSML limitado; `<mark>` não está na lista de tags suportadas |
-| **Studio** | US$ 160 / 1M caracteres | 100K | Premium / mídia | SSML parcial; não indicado para `<mark>` em produção |
+| Família | Preço (após cota grátis) | Qualidade (narração infantil) | Timepoints nativos |
+|---------|--------------------------|-------------------------------|--------------------|
+| **Gemini 2.5 Flash TTS** (padrão do app) | ~US$ 0,05–0,07 / história (~3 000 caracteres)* | Muito expressiva, tom natural e caloroso | **Não** — alinhamento via Speech-to-Text depois da síntese |
+| **Neural2** (alternativa) | US$ 16 / 1M caracteres (1M grátis/mês) | Boa prosódia, mas soa mais robótica | **Sim** (`<mark>` + `enableTimePointing`) |
+| **WaveNet** | US$ 4 / 1M caracteres | Boa relação custo/qualidade | **Sim** |
+| **Chirp 3: HD** | US$ 30 / 1M caracteres | Excelente, conversacional | **Não** |
 
-> **Requisito do Pequenos Discípulos:** leitura acompanhada palavra a palavra exige timepoints via `<mark name="…"/>` + `enableTimePointing: ["SSML_MARK"]` na API REST **v1beta1** `text:synthesize`. Só Standard, WaveNet e Neural2 são candidatas seguras.
+\* Estimativa para história de ~3 000 caracteres com `gemini-2.5-flash-tts`: tokens de entrada (~US$ 0,50 / 1M) + tokens de áudio (~US$ 10 / 1M, 25 tokens/s) + Speech-to-Text para alinhamento (~US$ 0,016/min). Sem cota grátis no Gemini-TTS.
 
-## Detalhes por família
+## Voz padrão do app — Gemini 2.5 Flash TTS
 
-### Standard (`pt-BR-Standard-A` … `E`)
+**Provider:** `GOOGLE_TTS_PROVIDER=gemini` (default)
 
-- **Preço:** US$ 0,000004/caractere → **US$ 4 / milhão** ([pricing](https://cloud.google.com/text-to-speech/pricing?hl=pt-BR)).
-- **Qualidade:** voz sintética clássica; aceitável para protótipo, inferior a WaveNet/Neural2 para crianças.
-- **Timepoints:** suportados via SSML `<mark>` + `enableTimePointing: ["SSML_MARK"]` ([referência v1beta1](https://cloud.google.com/text-to-speech/docs/reference/rest/v1beta1/text/synthesize)).
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `GOOGLE_TTS_MODEL` | `gemini-2.5-flash-tts` | Modelo Flash TTS (GA, pt-BR). Preview mais recente: `gemini-3.1-flash-tts-preview`. |
+| `GOOGLE_TTS_GEMINI_VOICE` | `Leda` | Voz feminina, calorosa — boa para histórias infantis. |
+| `GOOGLE_TTS_STYLE_PROMPT` | narradora calorosa… | Instruções de estilo em pt-BR (campo `input.prompt` da API). |
+| `GOOGLE_TTS_LANGUAGE` | `pt-BR` | Idioma da síntese e do alinhamento. |
 
-### WaveNet (`pt-BR-Wavenet-A` … `E`)
+**API usada:** Cloud Text-to-Speech `POST /v1/text:synthesize` com `input.text`, `input.prompt`, `voice.modelName` e `voice.name`. Reutiliza `GOOGLE_TTS_API_KEY` (restrita à Cloud Text-to-Speech) ou `GOOGLE_TTS_CREDENTIALS_JSON`.
 
-- **Preço:** **US$ 4 / milhão** (mesmo tier que Standard).
-- **Qualidade:** mais calor humano que Standard; boa relação custo/qualidade para narração de histórias bíblicas infantis.
-- **Timepoints:** **Sim**, mesmo mecanismo SSML `<mark>`.
+**Alinhamento palavra a palavra:** Gemini TTS não devolve timepoints. Depois da síntese, o app envia o MP3 + texto conhecido ao **Cloud Speech-to-Text v2** (`recognizers/_:recognize`) com `enableWordTimeOffsets: true`, casa as palavras transcritas com o texto original (tolerando diferenças de pontuação/acento) e produz o mesmo formato de `NarrationAlignment` usado pelo highlight. Se o alinhamento falhar (áudio longo, API indisponível, matching fraco), o áudio toca com tempos estimados ou sem destaque — a narração **não quebra**.
 
-### Neural2 (`pt-BR-Neural2-A`, `B`, `C`)
+**Cache:** chave `story-narration@<modelo>:<voz>:<hash-do-estilo>` (ex.: `story-narration@gemini-2.5-flash-tts:Leda:a1b2c3d4`). Campo `storyNarrationVoice` no conteúdo invalida cache ao mudar modelo, voz ou prompt.
 
-- **Preço:** US$ 0,000016/caractere → **US$ 16 / milhão**.
-- **Qualidade:** melhor prosódia e entonação; ideal quando o orçamento permite um tom mais “contador de histórias”.
-- **Timepoints:** **Sim**.
+## Alternativa — Neural2 (`GOOGLE_TTS_PROVIDER=neural2`)
 
-### Chirp 3: HD (`pt-BR-Chirp3-HD-*`, ~30 vozes)
+| Variável | Default |
+|----------|---------|
+| `GOOGLE_TTS_VOICE` | `pt-BR-Neural2-C` |
 
-- **Preço:** US$ 0,00003/caractere → **US$ 30 / milhão**.
-- **Qualidade:** a mais natural e expressiva; pensada para agentes e mídia premium.
-- **Timepoints:** **Não recomendado.** A documentação Chirp 3 HD lista tags SSML suportadas (`speak`, `break`, `prosody`, etc.) e **não inclui `<mark>`**; tags ignoradas não geram timepoints ([Chirp 3 HD SSML](https://cloud.google.com/text-to-speech/docs/chirp3-hd?hl=pt)).
-
-## Recomendação para o app
-
-**Voz padrão:** `pt-BR-Neural2-C` (feminina)
-
-Escolhida após teste de narração: WaveNet soou robótica; Neural2 entrega tom mais narrativo e natural para histórias infantis.
-
-Confirmação na documentação oficial:
-
-- **Existência:** listada em [Vozes e idiomas compatíveis](https://cloud.google.com/text-to-speech/docs/voices?hl=pt-br) como `pt-BR-Neural2-C` (Premium, feminina).
-- **SSML `<mark>` + timepoints:** Neural2 tem controlabilidade SSML; timepoints via `<mark>` + `enableTimePointing: ["SSML_MARK"]` na API v1beta1 ([SSML timepoints](https://cloud.google.com/text-to-speech/docs/ssml?hl=pt-br), [text:synthesize](https://cloud.google.com/text-to-speech/docs/reference/rest/v1beta1/text/synthesize)).
-
-Outras Neural2 pt-BR femininas (`pt-BR-Neural2-A`, `C`) também suportam SSML; `C` foi a preferida no teste de escuta.
-
+- **Timepoints nativos:** SSML `<mark>` + `enableTimePointing: ["SSML_MARK"]` na API **v1beta1**.
+- **Cache:** `story-narration@pt-BR-Neural2-C`
 - **Preço:** US$ 16 / milhão (cota grátis 1M/mês).
-- **Cache:** áudio gerado fica associado à voz (`story-narration@<voz>` no `AudioAsset` + campo `storyNarrationVoice` no conteúdo). Trocar a voz não reaproveita narração antiga.
 
-**Alternativa económica:** `pt-BR-Wavenet-A` (US$ 4 / milhão) se o custo for prioritário.
+WaveNet (`pt-BR-Wavenet-A`, US$ 4 / milhão) continua disponível via `GOOGLE_TTS_VOICE` com provider `neural2`.
 
-Configure via env `GOOGLE_TTS_VOICE=pt-BR-Neural2-C`.
+## Configuração no Google Cloud (passo a passo)
+
+### 1. Ativar APIs
+
+No [Google Cloud Console](https://console.cloud.google.com/) → **APIs e serviços** → **Biblioteca**:
+
+1. **Cloud Text-to-Speech API** — síntese Gemini + Neural2
+2. **Cloud Speech-to-Text API** — alinhamento pós-síntese (só necessário com provider `gemini`)
+
+Confirme que o **faturamento** está ativo no projeto.
+
+### 2. Criar / restringir a chave de API
+
+**APIs e serviços** → **Credenciais** → chave de API usada na Vercel (`GOOGLE_TTS_API_KEY`):
+
+- **Restrições de API:** permitir apenas
+  - Cloud Text-to-Speech API
+  - Cloud Speech-to-Text API
+- **Restrições de aplicativo:** IPs/serviços conforme política (Vercel = sem restrição de IP, ou usar service account).
+
+Alternativa mais segura: **service account** com `GOOGLE_TTS_CREDENTIALS_JSON` (`client_email` + `private_key` + `project_id`).
+
+### 3. Variáveis na Vercel
+
+| Variável | Obrigatória | Exemplo |
+|----------|-------------|---------|
+| `GOOGLE_TTS_API_KEY` | sim* | `AIza…` |
+| `GOOGLE_CLOUD_PROJECT_ID` | sim (Gemini) | `meu-projeto-123` |
+| `GOOGLE_TTS_PROVIDER` | não | `gemini` |
+| `GOOGLE_TTS_MODEL` | não | `gemini-2.5-flash-tts` |
+| `GOOGLE_TTS_GEMINI_VOICE` | não | `Leda` |
+| `GOOGLE_TTS_STYLE_PROMPT` | não | narradora calorosa… |
+| `GOOGLE_TTS_LANGUAGE` | não | `pt-BR` |
+| `TTS_USE_STUB` | não | `false` |
+
+\* Ou `GOOGLE_TTS_CREDENTIALS_JSON` (neste caso `project_id` no JSON substitui `GOOGLE_CLOUD_PROJECT_ID`).
+
+Para voltar ao Neural2:
+
+```
+GOOGLE_TTS_PROVIDER=neural2
+GOOGLE_TTS_VOICE=pt-BR-Neural2-C
+```
+
+### 4. Privacidade / LGPD
+
+- Texto narrado = conteúdo da história (nunca apelido da criança).
+- Cloud TTS e Speech-to-Text no plano pago **não usam os dados para treinar** modelos (ver [termos Google Cloud](https://cloud.google.com/terms)).
+- Não usamos a Gemini API (AI Studio) — só APIs Google Cloud com a mesma chave/projeto.
+
+## Custo estimado por história (~3 000 caracteres, ~3 min de áudio)
+
+| Item | Estimativa |
+|------|------------|
+| Gemini 2.5 Flash TTS (síntese) | US$ 0,05 – 0,07 |
+| Speech-to-Text (alinhamento, ~3 min) | ~US$ 0,05 |
+| **Total Gemini (padrão)** | **~US$ 0,10 – 0,12 / história** |
+| Neural2 (alternativa, com timepoints nativos) | ~US$ 0,05 (dentro da cota grátis de 1M chars) |
+
+Valores aproximados; monitorize no [Cloud Billing](https://console.cloud.google.com/billing).
 
 ## Referências
 
-- [Preços](https://cloud.google.com/text-to-speech/pricing?hl=pt-BR)
-- [Vozes pt-BR](https://cloud.google.com/text-to-speech/docs/voices?hl=pt-br)
-- [SSML timepoints](https://cloud.google.com/text-to-speech/docs/ssml)
-- [API v1beta1 text:synthesize](https://cloud.google.com/text-to-speech/docs/reference/rest/v1beta1/text/synthesize)
+- [Gemini-TTS](https://cloud.google.com/text-to-speech/docs/gemini-tts)
+- [Preços Text-to-Speech](https://cloud.google.com/text-to-speech/pricing?hl=pt-BR)
+- [Preços Speech-to-Text](https://cloud.google.com/speech-to-text/pricing?hl=pt-BR)
+- [API v1 text:synthesize](https://cloud.google.com/text-to-speech/docs/reference/rest/v1/text/synthesize)
+- [Speech-to-Text word time offsets](https://cloud.google.com/speech-to-text/docs/samples/speech-transcribe-word-time-offsets-v2)

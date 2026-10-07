@@ -31,7 +31,7 @@ Seleção de adaptações já existentes por `voteScore`, excluindo as do própr
 
 Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
 
-- **Narração da história:** uma síntese TTS para o texto completo (`story-narration@<voz>` no cache), com alinhamento **por palavra** (timepoints SSML `<mark>` do Google TTS v1beta1). Slices por página em `narration-alignment.ts`. Campo `storyNarrationVoice` no conteúdo invalida cache ao mudar voz.
+- **Narração da história:** uma síntese TTS para o texto completo (`story-narration@<suffix>` no cache). **Gemini Flash TTS** (default): Cloud TTS v1 + alinhamento pós-síntese via Speech-to-Text v2. **Neural2** (alternativa): timepoints SSML `<mark>` v1beta1. Slices por página em `narration-alignment.ts`. Campo `storyNarrationVoice` guarda o suffix completo (modelo/voz/estilo) e invalida cache ao mudar config.
 - **Blocos interactivos:** TTS curto (`generateSpeech`) ou SFX ElevenLabs conforme `resolve-block-audio.ts`.
 - **LGPD:** o texto enviado ao TTS vem só do conteúdo da história — nunca o apelido da criança (`ChildProfile.name`).
 
@@ -39,14 +39,16 @@ Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
 
 | Provider | Env | Uso |
 |----------|-----|-----|
-| `GoogleTtsProvider` | `GOOGLE_TTS_API_KEY` **ou** `GOOGLE_TTS_CREDENTIALS_JSON`, `GOOGLE_TTS_VOICE` (default `pt-BR-Neural2-C`) | Narração + timestamps |
+| `GeminiFlashTtsProvider` | `GOOGLE_TTS_PROVIDER=gemini`, `GOOGLE_TTS_MODEL`, `GOOGLE_TTS_GEMINI_VOICE`, `GOOGLE_TTS_STYLE_PROMPT`, `GOOGLE_CLOUD_PROJECT_ID` | Narração expressiva + alinhamento STT |
+| `GoogleTtsProvider` | `GOOGLE_TTS_PROVIDER=neural2`, `GOOGLE_TTS_VOICE` (default `pt-BR-Neural2-C`) | Narração + timepoints SSML nativos |
 | `StubTtsProvider` | `TTS_USE_STUB=true` ou sem credenciais Google | Dev / CI |
 | `ElevenLabsSfxProvider` | `ELEVENLABS_API_KEY` | Efeitos sonoros (removido no #5) |
 
 Autenticação Google TTS:
 
-1. **API key** — `GOOGLE_TTS_API_KEY`; restringir à API Cloud Text-to-Speech no Google Cloud Console.
-2. **Service account** — `GOOGLE_TTS_CREDENTIALS_JSON` com `client_email` + `private_key`; OAuth bearer no servidor (via `jose`).
+1. **API key** — `GOOGLE_TTS_API_KEY`; restringir às APIs Cloud Text-to-Speech **e** Cloud Speech-to-Text (Gemini).
+2. **Service account** — `GOOGLE_TTS_CREDENTIALS_JSON` com `client_email` + `private_key` + `project_id`; OAuth bearer no servidor (via `jose`).
+3. **Projeto** — `GOOGLE_CLOUD_PROJECT_ID` (obrigatório para Gemini + alinhamento, se não vier no JSON).
 
 Ver comparativo de vozes: `docs/google-tts-voices-pt-br.md`.
 

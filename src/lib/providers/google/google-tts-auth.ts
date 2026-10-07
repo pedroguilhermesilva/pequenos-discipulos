@@ -54,13 +54,27 @@ async function fetchAccessToken(credentialsJson: string): Promise<string> {
   return payload.access_token;
 }
 
+export function extractGoogleProjectId(credentialsJson?: string): string | undefined {
+  if (!credentialsJson) return undefined;
+  try {
+    const credentials = JSON.parse(credentialsJson) as { project_id?: string };
+    return credentials.project_id?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function resolveGoogleTtsAuthorization(
   apiKey?: string,
-  credentialsJson?: string
+  credentialsJson?: string,
+  projectId?: string
 ): Promise<{ headers: Record<string, string>; urlSuffix: string }> {
+  const billingProject = projectId?.trim() || extractGoogleProjectId(credentialsJson);
+  const projectHeader = billingProject ? { 'x-goog-user-project': billingProject } : {};
+
   if (apiKey) {
     return {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...projectHeader },
       urlSuffix: `?key=${encodeURIComponent(apiKey)}`,
     };
   }
@@ -71,6 +85,7 @@ export async function resolveGoogleTtsAuthorization(
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${cachedToken.value}`,
+          ...projectHeader,
         },
         urlSuffix: '',
       };
@@ -81,6 +96,7 @@ export async function resolveGoogleTtsAuthorization(
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
+        ...projectHeader,
       },
       urlSuffix: '',
     };

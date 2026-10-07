@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_GOOGLE_TTS_VOICE, ttsCacheBlockKey } from '@/lib/providers/google/google-tts-config';
+import {
+  buildTtsCacheSuffix,
+  DEFAULT_GOOGLE_TTS_VOICE,
+  ttsCacheBlockKey,
+} from '@/lib/providers/google/google-tts-config';
 import { AudioService, STORY_NARRATION_BLOCK_KEY } from '@/lib/services/audio.service';
 import type { AdaptationContent } from '@/lib/domain/schemas';
 
 import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
 
-const TTS_VOICE = DEFAULT_GOOGLE_TTS_VOICE;
-const NARRATION_CACHE_KEY = ttsCacheBlockKey(STORY_NARRATION_BLOCK_KEY, TTS_VOICE);
+const TTS_CACHE_SUFFIX = buildTtsCacheSuffix({
+  provider: 'neural2',
+  voice: DEFAULT_GOOGLE_TTS_VOICE,
+});
+const NARRATION_CACHE_KEY = ttsCacheBlockKey(STORY_NARRATION_BLOCK_KEY, TTS_CACHE_SUFFIX);
 
 function alignmentFromText(text: string, wordDuration = 0.35) {
   const tokens = tokenizeNarrationWords(text);
@@ -34,9 +41,9 @@ function createService(
   tts: unknown,
   sfx: unknown,
   storage: unknown,
-  voice = TTS_VOICE
+  cacheSuffix = TTS_CACHE_SUFFIX
 ) {
-  return new AudioService(prisma as never, tts as never, sfx as never, storage as never, voice);
+  return new AudioService(prisma as never, tts as never, sfx as never, storage as never, cacheSuffix);
 }
 
 describe('AudioService story narration', () => {
@@ -107,7 +114,7 @@ describe('AudioService story narration', () => {
         data: expect.objectContaining({
           content: expect.objectContaining({
             storyNarrationAudioPath: expect.any(String),
-            storyNarrationVoice: TTS_VOICE,
+            storyNarrationVoice: TTS_CACHE_SUFFIX,
             pages: expect.arrayContaining([
               expect.objectContaining({
                 narrationAudioPath: expect.any(String),
@@ -130,7 +137,7 @@ describe('AudioService story narration', () => {
         ...twoPageContent(),
         storyNarrationAudioPath: '/files/story.mp3',
         storyNarrationAlignment: alignment,
-        storyNarrationVoice: TTS_VOICE,
+        storyNarrationVoice: TTS_CACHE_SUFFIX,
       },
     });
 
@@ -141,6 +148,34 @@ describe('AudioService story narration', () => {
     expect(prisma.audioAsset.findUnique).not.toHaveBeenCalled();
     expect(result.url).toBe('/files/story.mp3');
     expect(result.pages).toHaveLength(2);
+  });
+
+  it('plays narration without highlight when alignment is missing', async () => {
+    const content = twoPageContent();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    prisma.passageAdaptation.findUnique.mockResolvedValue({
+      id: 'ad-1',
+      content,
+    });
+    prisma.audioAsset.findUnique.mockResolvedValue(null);
+    prisma.audioAsset.create.mockResolvedValue({
+      id: 'asset-1',
+      filePath: `audio/ad-1/${NARRATION_CACHE_KEY}.mp3`,
+    });
+    tts.generateSpeechWithTimestamps.mockResolvedValue({
+      buffer: Buffer.from('audio'),
+      contentType: 'audio/mpeg',
+      durationMs: 1840,
+      alignment: undefined,
+    });
+
+    const service = createService(prisma, tts, sfx, storage);
+    const result = await service.ensurePageNarration('ad-1', 0);
+
+    expect(result.url).toContain('audio/ad-1/');
+    expect(result.alignment).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('regenerates narration when stored voice differs from configured voice', async () => {
@@ -285,7 +320,7 @@ describe('AudioService.prepareAdaptationAudio', () => {
                       rotulo: 'Ouvir Jesus',
                       textoParaAudio: 'Coragem!',
                       tagSom: 'fala_jesus_coragem',
-                      audioPath: `/api/storage/audio/adaptation-1/p0-par0-part2@${TTS_VOICE}.mp3`,
+                      audioPath: `/api/storage/audio/adaptation-1/p0-par0-part2@${TTS_CACHE_SUFFIX}.mp3`,
                     },
                   ],
                 ],

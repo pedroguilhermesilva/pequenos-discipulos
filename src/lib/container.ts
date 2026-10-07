@@ -4,10 +4,9 @@ import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
 import {
-  DEFAULT_GOOGLE_TTS_LANGUAGE,
-  DEFAULT_GOOGLE_TTS_VOICE,
-} from '@/lib/providers/google/google-tts-config';
-import { GoogleTtsProvider } from '@/lib/providers/google/google-tts.provider';
+  createGoogleTtsProvider,
+  resolveGoogleTtsRuntimeConfig,
+} from '@/lib/providers/google/create-google-tts-provider';
 import { StubSfxProvider } from '@/lib/providers/stubs/stub-sfx.provider';
 import { StubTtsProvider } from '@/lib/providers/stubs/stub-tts.provider';
 import { PrismaAdaptationRepository } from '@/lib/repositories/prisma/prisma-adaptation.repository';
@@ -49,24 +48,14 @@ const llmProvider = useLlmStub
       providerName: 'LLM',
     });
 
-const googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY?.trim() ?? '';
-const googleTtsCredentialsJson = process.env.GOOGLE_TTS_CREDENTIALS_JSON?.trim() ?? '';
-const googleTtsVoice =
-  process.env.GOOGLE_TTS_VOICE?.trim() || DEFAULT_GOOGLE_TTS_VOICE;
-const googleTtsLanguage =
-  process.env.GOOGLE_TTS_LANGUAGE?.trim() || DEFAULT_GOOGLE_TTS_LANGUAGE;
+const googleTtsRuntimeConfig = resolveGoogleTtsRuntimeConfig(process.env);
 const useTtsStub =
   process.env.TTS_USE_STUB === 'true' ||
-  (!googleTtsApiKey && !googleTtsCredentialsJson);
+  (!googleTtsRuntimeConfig.apiKey && !googleTtsRuntimeConfig.credentialsJson);
 
 const ttsProvider = useTtsStub
   ? new StubTtsProvider()
-  : new GoogleTtsProvider({
-      apiKey: googleTtsApiKey || undefined,
-      credentialsJson: googleTtsCredentialsJson || undefined,
-      voiceName: googleTtsVoice,
-      languageCode: googleTtsLanguage,
-    });
+  : createGoogleTtsProvider(googleTtsRuntimeConfig);
 
 const elevenKey = process.env.ELEVENLABS_API_KEY?.trim() ?? '';
 const elevenBaseUrl =
@@ -92,7 +81,7 @@ const audioService = new AudioService(
   ttsProvider,
   sfxProvider,
   storageProvider,
-  googleTtsVoice
+  googleTtsRuntimeConfig.cacheSuffix
 );
 const storyCacheService = new StoryCacheService(prisma);
 
