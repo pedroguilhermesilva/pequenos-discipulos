@@ -23,7 +23,8 @@ Opcional (rate limit em prod): `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TO
 |-------|--------|-------------------|
 | 1.1 | Abrir `/login` | Formulário de login |
 | 1.2 | Login com credenciais seed | Redireciona para área autenticada |
-| 1.3 | Logout e tentar `/stories` | Redireciona para login |
+| 1.3 | Clicar **Sair** na sidebar (desktop ou mobile) | Redireciona para `/login`; cookie NextAuth removido |
+| 1.4 | Após sair, abrir `/home` directamente | Redireciona para login (sessão encerrada) |
 
 ---
 

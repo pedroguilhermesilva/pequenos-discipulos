@@ -1,15 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { NewStoryCTA } from '@/components/NewStoryCTA';
 import { SidebarAccountPanel } from '@/components/sidebar/SidebarAccountPanel';
 import { SidebarPremiumTeaser } from '@/components/sidebar/SidebarPremiumTeaser';
 import { Logo } from '@/components/ui/Logo';
+import { performClientSignOut } from '@/lib/auth/sign-out-client';
 import { cn } from '@/lib/cn';
 import { appNavItems, getActiveNavId } from '@/lib/app-nav';
-import { clearLocalSession } from '@/lib/profiles/storage';
 
 interface AppSidebarProps {
   open: boolean;
@@ -20,7 +20,6 @@ interface AppSidebarProps {
 
 export function AppSidebar({ open, collapsed, onClose, onToggleCollapse }: AppSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const activeId = getActiveNavId(pathname);
 
@@ -30,8 +29,7 @@ export function AppSidebar({ open, collapsed, onClose, onToggleCollapse }: AppSi
     onClose();
 
     try {
-      clearLocalSession();
-      router.push('/login');
+      await performClientSignOut('/login');
     } finally {
       setIsSigningOut(false);
     }
