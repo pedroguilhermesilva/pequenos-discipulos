@@ -17,53 +17,13 @@ export type PageNarrationSlice = {
 };
 
 export function alignmentToWords(alignment: NarrationAlignment): NarrationWordTiming[] {
-  const words: NarrationWordTiming[] = [];
-  let current = '';
-  let wordStart = 0;
-  let wordStartTime = alignment.characterStartTimesSeconds[0] ?? 0;
-  let charIndex = 0;
-
-  const flush = (endIndex: number, endTime: number) => {
-    const text = current.trim();
-    if (text) {
-      words.push({
-        text,
-        start: wordStartTime,
-        end: endTime,
-        charStart: wordStart,
-        charEnd: endIndex,
-      });
-    }
-    current = '';
-    wordStart = endIndex + 1;
-  };
-
-  for (let i = 0; i < alignment.characters.length; i++) {
-    const char = alignment.characters[i] ?? '';
-    const start = alignment.characterStartTimesSeconds[i] ?? 0;
-    const end = alignment.characterEndTimesSeconds[i] ?? start;
-
-    if (!current) {
-      wordStart = charIndex;
-      wordStartTime = start;
-    }
-
-    if (/\s/.test(char)) {
-      flush(charIndex, end);
-    } else {
-      current += char;
-    }
-
-    charIndex += char.length;
-  }
-
-  if (current.trim()) {
-    const lastEnd =
-      alignment.characterEndTimesSeconds[alignment.characterEndTimesSeconds.length - 1] ?? 0;
-    flush(charIndex - 1, lastEnd);
-  }
-
-  return words;
+  return alignment.words.map((text, index) => ({
+    text,
+    start: alignment.wordStartTimesSeconds[index] ?? 0,
+    end: alignment.wordEndTimesSeconds[index] ?? 0,
+    charStart: alignment.wordCharStarts[index] ?? 0,
+    charEnd: alignment.wordCharEnds[index] ?? 0,
+  }));
 }
 
 export function findActiveWordIndex(words: NarrationWordTiming[], currentTime: number): number {
@@ -81,39 +41,49 @@ export function findActiveWordIndex(words: NarrationWordTiming[], currentTime: n
   return -1;
 }
 
+function sliceWordIndices(
+  alignment: NarrationAlignment,
+  charStart: number,
+  charEnd: number
+): number[] {
+  const indices: number[] = [];
+
+  for (let index = 0; index < alignment.words.length; index++) {
+    const wordStart = alignment.wordCharStarts[index] ?? 0;
+    const wordEnd = alignment.wordCharEnds[index] ?? 0;
+    if (wordEnd > charStart && wordStart < charEnd) {
+      indices.push(index);
+    }
+  }
+
+  return indices;
+}
+
 export function sliceAlignmentByCharRange(
   alignment: NarrationAlignment,
   charStart: number,
   charEnd: number
 ): { alignment: NarrationAlignment; startSeconds: number; endSeconds: number } | null {
-  let cursor = 0;
-  let from = -1;
-  let to = -1;
+  const indices = sliceWordIndices(alignment, charStart, charEnd);
+  if (indices.length === 0) return null;
 
-  for (let i = 0; i < alignment.characters.length; i++) {
-    const char = alignment.characters[i] ?? '';
-    const next = cursor + char.length;
-    if (next > charStart && cursor < charEnd) {
-      if (from === -1) from = i;
-      to = i;
-    }
-    cursor = next;
-  }
-
-  if (from === -1 || to === -1) return null;
+  const from = indices[0];
+  const to = indices[indices.length - 1];
 
   const sliced: NarrationAlignment = {
-    characters: alignment.characters.slice(from, to + 1),
-    characterStartTimesSeconds: alignment.characterStartTimesSeconds.slice(from, to + 1),
-    characterEndTimesSeconds: alignment.characterEndTimesSeconds.slice(from, to + 1),
+    words: alignment.words.slice(from, to + 1),
+    wordStartTimesSeconds: alignment.wordStartTimesSeconds.slice(from, to + 1),
+    wordEndTimesSeconds: alignment.wordEndTimesSeconds.slice(from, to + 1),
+    wordCharStarts: alignment.wordCharStarts.slice(from, to + 1),
+    wordCharEnds: alignment.wordCharEnds.slice(from, to + 1),
   };
 
   return {
     alignment: sliced,
-    startSeconds: sliced.characterStartTimesSeconds[0] ?? 0,
+    startSeconds: sliced.wordStartTimesSeconds[0] ?? 0,
     endSeconds:
-      sliced.characterEndTimesSeconds[sliced.characterEndTimesSeconds.length - 1] ??
-      sliced.characterStartTimesSeconds[0] ??
+      sliced.wordEndTimesSeconds[sliced.wordEndTimesSeconds.length - 1] ??
+      sliced.wordStartTimesSeconds[0] ??
       0,
   };
 }

@@ -27,6 +27,29 @@ Gera ou reutiliza adaptações de passagens bíblicas.
 
 Seleção de adaptações já existentes por `voteScore`, excluindo as do próprio utilizador e as já vistas.
 
+## AudioService
+
+Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
+
+- **Narração da história:** uma síntese TTS para o texto completo (`story-narration`), com alinhamento **por palavra** (timepoints SSML `<mark>` do Google TTS v1beta1). Slices por página em `narration-alignment.ts`.
+- **Blocos interactivos:** TTS curto (`generateSpeech`) ou SFX ElevenLabs conforme `resolve-block-audio.ts`.
+- **LGPD:** o texto enviado ao TTS vem só do conteúdo da história — nunca o apelido da criança (`ChildProfile.name`).
+
+**Providers:**
+
+| Provider | Env | Uso |
+|----------|-----|-----|
+| `GoogleTtsProvider` | `GOOGLE_TTS_API_KEY` **ou** `GOOGLE_TTS_CREDENTIALS_JSON`, `GOOGLE_TTS_VOICE` (default `pt-BR-Wavenet-A`) | Narração + timestamps |
+| `StubTtsProvider` | `TTS_USE_STUB=true` ou sem credenciais Google | Dev / CI |
+| `ElevenLabsSfxProvider` | `ELEVENLABS_API_KEY` | Efeitos sonoros (removido no #5) |
+
+Autenticação Google TTS:
+
+1. **API key** — `GOOGLE_TTS_API_KEY`; restringir à API Cloud Text-to-Speech no Google Cloud Console.
+2. **Service account** — `GOOGLE_TTS_CREDENTIALS_JSON` com `client_email` + `private_key`; OAuth bearer no servidor (via `jose`).
+
+Ver comparativo de vozes: `docs/google-tts-voices-pt-br.md`.
+
 ## Armazenamento de áudio
 
 - **Produção/preview (Vercel):** `BlobStorageProvider` quando `BLOB_READ_WRITE_TOKEN` está definido — store privado `pequenos-discipulos-audio` (fra1). URLs servidas via `/api/storage/...` (nunca URL privada do Blob nem o token).
@@ -75,6 +98,7 @@ Votos e aprovação familiar — **sempre** atrás de parent gate validado no se
 | `AUTH_SECRET` / `AUTH_URL` | NextAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth opcional |
 | `LLM_*` | Geração de histórias |
-| `ELEVENLABS_*` / `TTS_USE_STUB` | Áudio |
+| `GOOGLE_TTS_*` / `TTS_USE_STUB` | Narração TTS (Google) |
+| `ELEVENLABS_*` | SFX (ElevenLabs, até #5) |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limit partilhado (prod) |
 | `BLOB_READ_WRITE_TOKEN` | Áudio privado no Vercel Blob (prod/preview) |

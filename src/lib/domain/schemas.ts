@@ -45,9 +45,11 @@ export const storyPageActivitySchema = z.object({
 });
 
 export const narrationAlignmentSchema = z.object({
-  characters: z.array(z.string()),
-  characterStartTimesSeconds: z.array(z.number()),
-  characterEndTimesSeconds: z.array(z.number()),
+  words: z.array(z.string()),
+  wordStartTimesSeconds: z.array(z.number()),
+  wordEndTimesSeconds: z.array(z.number()),
+  wordCharStarts: z.array(z.number()),
+  wordCharEnds: z.array(z.number()),
 });
 
 export const storyPageSchema = z.object({

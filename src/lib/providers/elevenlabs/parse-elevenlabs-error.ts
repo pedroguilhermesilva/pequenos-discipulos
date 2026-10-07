@@ -1,6 +1,6 @@
 export function parseElevenLabsError(status: number, errorBody: string): string {
   if (errorBody.includes('paid_plan_required') || status === 402) {
-    return 'Esta voz exige plano pago na ElevenLabs. Escolha uma voz padrão ou das suas vozes em ELEVENLABS_TTS_VOICE_ID.';
+    return 'Esta voz exige plano pago na ElevenLabs. Escolha outra voz ou modelo em ELEVENLABS_SFX_MODEL.';
   }
 
   if (status === 401) {

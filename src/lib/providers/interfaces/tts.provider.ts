@@ -1,7 +1,9 @@
 export interface TtsAlignment {
-  characters: string[];
-  characterStartTimesSeconds: number[];
-  characterEndTimesSeconds: number[];
+  words: string[];
+  wordStartTimesSeconds: number[];
+  wordEndTimesSeconds: number[];
+  wordCharStarts: number[];
+  wordCharEnds: number[];
 }
 
 export interface TtsGenerateParams {

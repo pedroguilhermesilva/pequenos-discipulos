@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AudioService, STORY_NARRATION_BLOCK_KEY } from '@/lib/services/audio.service';
 import type { AdaptationContent } from '@/lib/domain/schemas';
 
-function alignmentFromText(text: string, charDuration = 0.08) {
-  const characters = [...text];
+import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
+
+function alignmentFromText(text: string, wordDuration = 0.35) {
+  const tokens = tokenizeNarrationWords(text);
+
   return {
-    characters,
-    characterStartTimesSeconds: characters.map((_, index) => index * charDuration),
-    characterEndTimesSeconds: characters.map((_, index) => (index + 1) * charDuration),
+    words: tokens.map((token) => token.text),
+    wordStartTimesSeconds: tokens.map((_, index) => index * wordDuration),
+    wordEndTimesSeconds: tokens.map((_, index) => (index + 1) * wordDuration),
+    wordCharStarts: tokens.map((token) => token.charStart),
+    wordCharEnds: tokens.map((token) => token.charEnd),
   };
 }
 
@@ -160,9 +165,11 @@ describe('AudioService.prepareAdaptationAudio', () => {
       contentType: 'audio/mpeg',
       durationMs: 1200,
       alignment: {
-        characters: ['O', 'i'],
-        characterStartTimesSeconds: [0, 0.1],
-        characterEndTimesSeconds: [0.1, 0.2],
+        words: ['Oi'],
+        wordStartTimesSeconds: [0],
+        wordEndTimesSeconds: [0.2],
+        wordCharStarts: [0],
+        wordCharEnds: [2],
       },
     });
     vi.mocked(storage.save).mockResolvedValue('saved');

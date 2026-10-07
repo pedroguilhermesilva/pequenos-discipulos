@@ -5,6 +5,7 @@ import type {
   TtsGenerateWithTimestampsResult,
   TtsProvider,
 } from '@/lib/providers/interfaces/tts.provider';
+import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
 
 function silentWavBuffer(): Buffer {
   return Buffer.from([
@@ -16,16 +17,28 @@ function silentWavBuffer(): Buffer {
 }
 
 function buildStubAlignment(text: string) {
-  const characters = [...text];
-  const characterStartTimesSeconds: number[] = [];
-  const characterEndTimesSeconds: number[] = [];
+  const tokens = tokenizeNarrationWords(text);
+  const words: string[] = [];
+  const wordStartTimesSeconds: number[] = [];
+  const wordEndTimesSeconds: number[] = [];
+  const wordCharStarts: number[] = [];
+  const wordCharEnds: number[] = [];
 
-  characters.forEach((_, index) => {
-    characterStartTimesSeconds.push(index * 0.08);
-    characterEndTimesSeconds.push((index + 1) * 0.08);
+  tokens.forEach((token, index) => {
+    words.push(token.text);
+    wordStartTimesSeconds.push(index * 0.35);
+    wordEndTimesSeconds.push((index + 1) * 0.35);
+    wordCharStarts.push(token.charStart);
+    wordCharEnds.push(token.charEnd);
   });
 
-  return { characters, characterStartTimesSeconds, characterEndTimesSeconds };
+  return {
+    words,
+    wordStartTimesSeconds,
+    wordEndTimesSeconds,
+    wordCharStarts,
+    wordCharEnds,
+  };
 }
 
 /**
@@ -42,8 +55,7 @@ export class StubTtsProvider implements TtsProvider {
   ): Promise<TtsGenerateWithTimestampsResult> {
     const alignment = buildStubAlignment(params.text);
     const durationMs = Math.round(
-      (alignment.characterEndTimesSeconds[alignment.characterEndTimesSeconds.length - 1] ?? 0.5) *
-        1000
+      (alignment.wordEndTimesSeconds[alignment.wordEndTimesSeconds.length - 1] ?? 0.5) * 1000
     );
     return {
       buffer: silentWavBuffer(),
@@ -56,6 +68,6 @@ export class StubTtsProvider implements TtsProvider {
 
 export class UnconfiguredTtsProvider implements TtsProvider {
   async generateSpeech(): Promise<TtsGenerateResult> {
-    throw new DomainError('TTS_NOT_CONFIGURED', 'TTS_API_KEY não configurada.');
+    throw new DomainError('TTS_NOT_CONFIGURED', 'TTS não configurado.');
   }
 }

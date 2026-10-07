@@ -25,7 +25,9 @@ npm run dev
 
 Ver `.env.example`. Obrigatórias em produção: `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_URL`.
 
-Opcionais em produção: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limit partilhado); `BLOB_READ_WRITE_TOKEN` (áudio privado no Vercel Blob store `pequenos-discipulos-audio`).
+Opcionais em produção: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limit partilhado); `BLOB_READ_WRITE_TOKEN` (áudio privado no Vercel Blob store `pequenos-discipulos-audio`); `GOOGLE_TTS_API_KEY` ou `GOOGLE_TTS_CREDENTIALS_JSON` (narração TTS); `ELEVENLABS_API_KEY` (SFX até issue #5).
+
+Comparativo de vozes pt-BR: `docs/google-tts-voices-pt-br.md`.
 
 ## Bíblia
 

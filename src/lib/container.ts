@@ -3,7 +3,7 @@ import { createStorageProvider } from '@/lib/providers/create-storage-provider';
 import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
-import { ElevenLabsTtsProvider } from '@/lib/providers/elevenlabs/elevenlabs-tts.provider';
+import { GoogleTtsProvider } from '@/lib/providers/google/google-tts.provider';
 import { StubSfxProvider } from '@/lib/providers/stubs/stub-sfx.provider';
 import { StubTtsProvider } from '@/lib/providers/stubs/stub-tts.provider';
 import { PrismaAdaptationRepository } from '@/lib/repositories/prisma/prisma-adaptation.repository';
@@ -45,27 +45,33 @@ const llmProvider = useLlmStub
       providerName: 'LLM',
     });
 
+const googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY?.trim() ?? '';
+const googleTtsCredentialsJson = process.env.GOOGLE_TTS_CREDENTIALS_JSON?.trim() ?? '';
+const googleTtsVoice =
+  process.env.GOOGLE_TTS_VOICE?.trim() || 'pt-BR-Wavenet-A';
+const googleTtsLanguage =
+  process.env.GOOGLE_TTS_LANGUAGE?.trim() || 'pt-BR';
+const useTtsStub =
+  process.env.TTS_USE_STUB === 'true' ||
+  (!googleTtsApiKey && !googleTtsCredentialsJson);
+
+const ttsProvider = useTtsStub
+  ? new StubTtsProvider()
+  : new GoogleTtsProvider({
+      apiKey: googleTtsApiKey || undefined,
+      credentialsJson: googleTtsCredentialsJson || undefined,
+      voiceName: googleTtsVoice,
+      languageCode: googleTtsLanguage,
+    });
+
 const elevenKey = process.env.ELEVENLABS_API_KEY?.trim() ?? '';
 const elevenBaseUrl =
   process.env.ELEVENLABS_BASE_URL?.trim() || 'https://api.elevenlabs.io/v1';
-const elevenVoiceId = process.env.ELEVENLABS_TTS_VOICE_ID?.trim() ?? '';
-const elevenTtsModel =
-  process.env.ELEVENLABS_TTS_MODEL?.trim() || 'eleven_multilingual_v2';
 const elevenSfxModel =
   process.env.ELEVENLABS_SFX_MODEL?.trim() || 'eleven_text_to_sound_v2';
-const useAudioStub =
-  process.env.TTS_USE_STUB === 'true' || !elevenKey || !elevenVoiceId;
+const useSfxStub = process.env.TTS_USE_STUB === 'true' || !elevenKey;
 
-const ttsProvider = useAudioStub
-  ? new StubTtsProvider()
-  : new ElevenLabsTtsProvider({
-      apiKey: elevenKey,
-      baseUrl: elevenBaseUrl,
-      voiceId: elevenVoiceId,
-      model: elevenTtsModel,
-    });
-
-const sfxProvider = useAudioStub
+const sfxProvider = useSfxStub
   ? new StubSfxProvider()
   : new ElevenLabsSfxProvider({
       apiKey: elevenKey,
