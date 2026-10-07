@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { Logo } from '@/components/ui/Logo';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { sanitizeCallbackPath } from '@/lib/auth/safe-redirect-client';
 
@@ -212,9 +213,13 @@ export function LoginPageContent() {
                     </div>
                   </div>
 
-                  <SecondaryButton type="button" onClick={handleGoogle} disabled={loading} fullWidth>
-                    Continuar com Google
-                  </SecondaryButton>
+                  <GoogleSignInButton
+                    type="button"
+                    onClick={handleGoogle}
+                    disabled={loading}
+                    fullWidth
+                    aria-label="Continuar com Google"
+                  />
                 </>
               )}
             </div>
