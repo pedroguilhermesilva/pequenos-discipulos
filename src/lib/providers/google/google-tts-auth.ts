@@ -70,7 +70,7 @@ export async function resolveGoogleTtsAuthorization(
   projectId?: string
 ): Promise<{ headers: Record<string, string>; urlSuffix: string }> {
   const billingProject = projectId?.trim() || extractGoogleProjectId(credentialsJson);
-  const projectHeader = billingProject ? { 'x-goog-user-project': billingProject } : {};
+  const projectHeader: Record<string, string> = billingProject ? { 'x-goog-user-project': billingProject } : {};
 
   if (apiKey) {
     return {

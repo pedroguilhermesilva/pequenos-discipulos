@@ -6,10 +6,12 @@ import {
 import { GoogleNarrationAligner } from '@/lib/providers/narration-aligner/google-narration-aligner';
 import { GroqWhisperNarrationAligner } from '@/lib/providers/narration-aligner/groq-whisper-narration-aligner';
 
+const env = (values: Record<string, string>) => values as unknown as NodeJS.ProcessEnv;
+
 describe('createNarrationAligner', () => {
   it('defaults to Google aligner', () => {
     const aligner = createNarrationAligner(
-      {},
+      env({}),
       { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
     );
 
@@ -20,7 +22,7 @@ describe('createNarrationAligner', () => {
 
   it('creates Groq aligner when configured', () => {
     const aligner = createNarrationAligner(
-      { NARRATION_ALIGNER: 'groq', GROQ_API_KEY: 'gsk-test' },
+      env({ NARRATION_ALIGNER: 'groq', GROQ_API_KEY: 'gsk-test' }),
       { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
     );
 
@@ -31,7 +33,7 @@ describe('createNarrationAligner', () => {
   it('throws when Groq is selected without API key', () => {
     expect(() =>
       createNarrationAligner(
-        { NARRATION_ALIGNER: 'groq' },
+        env({ NARRATION_ALIGNER: 'groq' }),
         { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
       )
     ).toThrow(/GROQ_API_KEY/);
