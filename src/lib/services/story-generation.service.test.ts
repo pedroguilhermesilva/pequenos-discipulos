@@ -17,7 +17,7 @@ describe('StoryGenerationService cache-first behavior', () => {
   };
   const prisma = {
     passage: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-    passageAdaptation: { create: vi.fn() },
+    passageAdaptation: { create: vi.fn(), findUnique: vi.fn() },
     readingProgress: { upsert: vi.fn() },
     usageEvent: { upsert: vi.fn() },
     storyGenerationIdempotency: {
@@ -38,6 +38,7 @@ describe('StoryGenerationService cache-first behavior', () => {
     vi.mocked(prisma.storyGenerationIdempotency.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.storyGenerationIdempotency.create).mockResolvedValue({} as never);
     vi.mocked(prisma.storyGenerationIdempotency.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.passageAdaptation.findUnique).mockResolvedValue(null);
   });
 
   function buildService() {
@@ -54,6 +55,8 @@ describe('StoryGenerationService cache-first behavior', () => {
     );
   }
 
+  const sampleContent = { pages: [{ paragraphs: [[{ type: 'text', value: 'Olá' }]] }] };
+
   const payload = {
     passageSlug: 'mateus-2-1-3',
     bibleVersionId: 'alm1911',
@@ -69,6 +72,7 @@ describe('StoryGenerationService cache-first behavior', () => {
     vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
       id: 'adaptation-cached',
       title: 'História em cache',
+      content: sampleContent,
     } as never);
 
     const result = await buildService().generateOrReuse({
@@ -78,6 +82,7 @@ describe('StoryGenerationService cache-first behavior', () => {
     });
 
     expect(result.adaptationId).toBe('adaptation-cached');
+    expect(result.content).toEqual(sampleContent);
     expect(llm.generateStory).not.toHaveBeenCalled();
     expect(planLimits.assertCanGenerate).not.toHaveBeenCalled();
     expect(storyCache.recordView).toHaveBeenCalledWith(
@@ -127,6 +132,7 @@ describe('StoryGenerationService cache-first behavior', () => {
     vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
       id: 'adaptation-from-user-b',
       title: 'Versão do utilizador B',
+      content: sampleContent,
     } as never);
 
     const result = await buildService().generateOrReuse({
@@ -143,15 +149,18 @@ describe('StoryGenerationService cache-first behavior', () => {
   });
 
   it('returns the same result for duplicate requests with the same idempotency key', async () => {
-    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
-      id: 'adaptation-cached',
-      title: 'História em cache',
-    } as never);
     vi.mocked(prisma.storyGenerationIdempotency.findUnique).mockResolvedValue({
       adaptationId: 'adaptation-cached',
       userStoryId: 'user-story-1',
       title: 'História em cache',
       expiresAt: new Date(Date.now() + 60_000),
+    } as never);
+    vi.mocked(prisma.passageAdaptation.findUnique).mockResolvedValue({
+      id: 'adaptation-cached',
+      title: 'História em cache',
+      content: sampleContent,
+      quiz: null,
+      adaptationNote: null,
     } as never);
 
     const result = await buildService().generateOrReuse({

@@ -15,12 +15,21 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:3000',
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'mobile-safari',
+      use: {
+        ...devices['iPhone 13'],
+        browserName: 'chromium',
+      },
+    },
+  ],
   webServer: {
-    command: 'npm run dev',
+    command: process.env.PLAYWRIGHT_PROD === '1' ? 'npm run start' : 'npm run dev',
     url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    reuseExistingServer: !process.env.CI || process.env.PLAYWRIGHT_PROD === '1',
+    timeout: 180_000,
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,

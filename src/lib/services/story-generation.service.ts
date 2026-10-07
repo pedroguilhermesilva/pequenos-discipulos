@@ -8,7 +8,9 @@ import {
   adaptationContentSchema,
   generateStoryInputSchema,
   storyQuizSchema,
+  type AdaptationContent,
   type GenerateStoryInput,
+  type StoryQuizData,
 } from '@/lib/domain/schemas';
 import type { LlmProvider } from '@/lib/providers/interfaces/llm.provider';
 import type { AdaptationRepository } from '@/lib/repositories/interfaces/adaptation.repository';
@@ -33,6 +35,9 @@ export type GenerateStoryResult = {
   adaptationId: string;
   userStoryId: string;
   title: string;
+  content: AdaptationContent;
+  quiz?: StoryQuizData;
+  adaptationNote?: string | null;
 };
 
 const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
@@ -66,7 +71,7 @@ export class StoryGenerationService {
         payload.idempotencyKey
       );
       if (cachedResult) {
-        return cachedResult;
+        return this.hydrateGenerateStoryResult(cachedResult);
       }
 
       const claimed = await this.claimIdempotencyKey(
@@ -79,7 +84,7 @@ export class StoryGenerationService {
           payload.idempotencyKey
         );
         if (resolved) {
-          return resolved;
+          return this.hydrateGenerateStoryResult(resolved);
         }
       }
     }
@@ -228,6 +233,9 @@ export class StoryGenerationService {
       cacheKey,
       source: 'generated',
       totalPages: content.data.pages.length,
+      content: content.data,
+      quiz,
+      adaptationNote: generated.adaptationNote,
     });
 
     await this.prepareAudio(adaptation.id);
@@ -235,10 +243,39 @@ export class StoryGenerationService {
     return result;
   }
 
+  private async hydrateGenerateStoryResult(
+    result: Pick<GenerateStoryResult, 'adaptationId' | 'userStoryId' | 'title'>
+  ): Promise<GenerateStoryResult> {
+    const adaptation = await this.prisma.passageAdaptation.findUnique({
+      where: { id: result.adaptationId },
+    });
+    if (!adaptation) {
+      throw new AdaptationNotFound(`Adaptação não encontrada: ${result.adaptationId}`);
+    }
+
+    const content = adaptationContentSchema.safeParse(adaptation.content);
+    if (!content.success) {
+      throw new LlmValidationError('Adaptação sem conteúdo válido.');
+    }
+
+    const quiz = adaptation.quiz
+      ? storyQuizSchema.safeParse(adaptation.quiz).success
+        ? storyQuizSchema.parse(adaptation.quiz)
+        : undefined
+      : undefined;
+
+    return {
+      ...result,
+      content: content.data,
+      quiz,
+      adaptationNote: adaptation.adaptationNote,
+    };
+  }
+
   private async findIdempotentResult(
     userId: string,
     idempotencyKey?: string
-  ): Promise<GenerateStoryResult | null> {
+  ): Promise<Pick<GenerateStoryResult, 'adaptationId' | 'userStoryId' | 'title'> | null> {
     if (!idempotencyKey) return null;
 
     const existing = await this.prisma.storyGenerationIdempotency.findUnique({
@@ -300,7 +337,7 @@ export class StoryGenerationService {
     while (Date.now() < deadline) {
       const resolved = await this.findIdempotentResult(userId, idempotencyKey);
       if (resolved) {
-        return resolved;
+        return this.hydrateGenerateStoryResult(resolved);
       }
       await new Promise((resolve) => setTimeout(resolve, IDEMPOTENCY_POLL_MS));
     }
@@ -333,11 +370,35 @@ export class StoryGenerationService {
   private async attachAdaptationToUser(params: {
     userId: string;
     childProfileId?: string;
-    adaptation: { id: string; title: string };
+    adaptation: {
+      id: string;
+      title: string;
+      content?: unknown;
+      quiz?: unknown;
+      adaptationNote?: string | null;
+    };
     cacheKey: string;
     source: 'cached' | 'generated';
     totalPages?: number;
+    content?: AdaptationContent;
+    quiz?: StoryQuizData;
+    adaptationNote?: string | null;
   }): Promise<GenerateStoryResult> {
+    const parsedContent = params.content
+      ?? (adaptationContentSchema.safeParse(params.adaptation.content).success
+        ? adaptationContentSchema.parse(params.adaptation.content)
+        : null);
+    if (!parsedContent) {
+      throw new LlmValidationError('Adaptação sem conteúdo válido.');
+    }
+
+    const parsedQuiz =
+      params.quiz ??
+      (params.adaptation.quiz
+        ? storyQuizSchema.safeParse(params.adaptation.quiz).success
+          ? storyQuizSchema.parse(params.adaptation.quiz)
+          : undefined
+        : undefined);
     const userStory = await this.userStories.upsertFromAdaptation({
       userId: params.userId,
       childProfileId: params.childProfileId,
@@ -374,6 +435,9 @@ export class StoryGenerationService {
       adaptationId: params.adaptation.id,
       userStoryId: userStory.id,
       title: params.adaptation.title,
+      content: parsedContent,
+      quiz: parsedQuiz,
+      adaptationNote: params.adaptationNote ?? params.adaptation.adaptationNote ?? null,
     };
   }
 

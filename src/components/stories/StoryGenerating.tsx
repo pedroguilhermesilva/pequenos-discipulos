@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import type { AdaptationContent, StoryQuizData } from '@/lib/domain/schemas';
 import type { ContentType } from '@/lib/stories/types';
 import { contentTypeConfig } from '@/lib/stories/content-type';
 import type { AgeTier } from '@/lib/stories/age-tiers';
@@ -11,7 +12,14 @@ import type { UserPreferences } from '@/lib/onboarding/types';
 type GenerationApiResult = {
   ok: boolean;
   message?: string;
-  data?: { userStoryId: string; adaptationId: string; title: string };
+  data?: {
+    userStoryId: string;
+    adaptationId: string;
+    title: string;
+    content: AdaptationContent;
+    quiz?: StoryQuizData;
+    adaptationNote?: string | null;
+  };
 };
 
 const inFlightGenerations = new Map<string, Promise<GenerationApiResult>>();
@@ -58,7 +66,14 @@ interface StoryGeneratingProps {
   childProfileId?: string;
   mode?: 'initial' | 'regenerate';
   currentAdaptationId?: string;
-  onComplete: (result: { userStoryId: string; adaptationId: string; title: string }) => void;
+  onComplete: (result: {
+    userStoryId: string;
+    adaptationId: string;
+    title: string;
+    content: AdaptationContent;
+    quiz?: StoryQuizData;
+    adaptationNote?: string | null;
+  }) => void;
   onError?: (message: string) => void;
 }
 

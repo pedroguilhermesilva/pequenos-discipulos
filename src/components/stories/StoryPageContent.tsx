@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { PassageSelection } from '@/components/stories/PassageSelection';
 import { GenerationTypeSelection } from '@/components/stories/GenerationTypeSelection';
 import { StoryGenerating } from '@/components/stories/StoryGenerating';
 import { StoryViewerContent } from '@/components/stories/StoryViewerContent';
 import type { StorySummary } from '@/lib/stories';
+import type { AdaptationContent, StoryQuizData } from '@/lib/domain/schemas';
 import {
   getPassageById,
   getPassageIdFromReference,
@@ -22,34 +23,65 @@ import {
   resolveDisplayedStory,
   shouldShowDbLoading,
 } from '@/lib/stories/story-generation-state';
-import { buildStoryUrl, parseStorySearchParams } from '@/lib/stories/story-url';
+import {
+  buildStoryUrl,
+  parseStorySearchParams,
+  parsedStorySearchParamsFromRecord,
+  type ParsedStorySearchParams,
+} from '@/lib/stories/story-url';
 import type { ContentType } from '@/lib/stories/types';
 import Link from 'next/link';
 
-export function StoryPageContent() {
+type StoryPageContentProps = {
+  storyId: string;
+  serverSearchParams?: Record<string, string | string[] | undefined>;
+};
+
+export function StoryPageContent({ storyId, serverSearchParams }: StoryPageContentProps) {
   return (
     <AppShell>
-      <StoryPageInner />
+      <StoryPageInner storyId={storyId} serverSearchParams={serverSearchParams} />
     </AppShell>
   );
 }
 
-function StoryPageInner() {
-  const params = useParams();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { activeProfile } = useChildProfiles();
-  const storyId = params.id as string;
+function mergeStorySearchParams(
+  serverSearchParams: Record<string, string | string[] | undefined> | undefined,
+  clientSearchParams: URLSearchParams
+): ParsedStorySearchParams {
+  if (clientSearchParams.size > 0) {
+    return parseStorySearchParams(clientSearchParams);
+  }
+  return parsedStorySearchParamsFromRecord(serverSearchParams ?? {});
+}
 
-  const isNewStory = isNewStoryId(storyId);
+function StoryPageInner({ storyId, serverSearchParams }: StoryPageContentProps) {
+  const router = useRouter();
+  const clientSearchParams = useSearchParams();
+  const { activeProfile } = useChildProfiles();
+
+  const urlParams = useMemo(
+    () => mergeStorySearchParams(serverSearchParams, clientSearchParams),
+    [clientSearchParams, serverSearchParams]
+  );
+
+  const routeIsNewStory = isNewStoryId(storyId);
+  const persistedStoryId = urlParams.historiaId;
+  const effectiveStoryId = persistedStoryId ?? storyId;
+  const isCreationRoute = routeIsNewStory && !urlParams.ready;
 
   const [newStory, setNewStory] = useState(() => createNewStoryPlaceholder());
   const [dbStory, setDbStory] = useState<StorySummary | null>(null);
-  const [dbLoading, setDbLoading] = useState(!isNewStory);
+  const [dbLoading, setDbLoading] = useState(!isCreationRoute && !urlParams.ready);
   const [resolvedStoryId, setResolvedStoryId] = useState<string | null>(
-    isNewStory ? null : storyId
+    persistedStoryId ?? (routeIsNewStory ? null : storyId)
   );
   const [adaptationId, setAdaptationId] = useState<string | null>(null);
+  const [initialAdaptationContent, setInitialAdaptationContent] = useState<AdaptationContent | null>(
+    null
+  );
+  const [initialAdaptationQuiz, setInitialAdaptationQuiz] = useState<StoryQuizData | null>(null);
+  const [initialAdaptationNote, setInitialAdaptationNote] = useState<string | null>(null);
   const [dbPassageSlug, setDbPassageSlug] = useState<string | null>(null);
   const [dbVerseFrom, setDbVerseFrom] = useState<number | null>(null);
   const [dbVerseTo, setDbVerseTo] = useState<number | null>(null);
@@ -57,12 +89,12 @@ function StoryPageInner() {
   const [dbSourceVerses, setDbSourceVerses] = useState<BibleVerseLine[]>([]);
 
   useEffect(() => {
-    if (!isNewStory || !activeProfile) return;
+    if (!routeIsNewStory || !activeProfile) return;
     setNewStory(createNewStoryPlaceholder(activeProfile.preferences));
-  }, [activeProfile, isNewStory]);
+  }, [activeProfile, routeIsNewStory]);
 
   useEffect(() => {
-    if (isNewStory) {
+    if (isCreationRoute) {
       setDbLoading(false);
       return;
     }
@@ -70,25 +102,32 @@ function StoryPageInner() {
     let cancelled = false;
 
     async function loadStory() {
-      setDbLoading(true);
+      const shouldBlockUi = !urlParams.ready;
+      if (shouldBlockUi) {
+        setDbLoading(true);
+      }
+
       try {
-        const detail = await getUserStoryAction(storyId);
+        const detail = await getUserStoryAction(effectiveStoryId);
         if (cancelled) return;
 
         if (detail) {
           setDbStory(detail.summary);
-          setAdaptationId(detail.adaptationId);
+          setAdaptationId((current) => current ?? detail.adaptationId);
           setDbPassageSlug(detail.passageSlug);
           setDbVerseFrom(detail.verseFrom);
           setDbVerseTo(detail.verseTo);
           setDbSourceVerses(detail.sourceVerses);
           setDbContentType(detail.summary.defaultContentType ?? null);
+          setResolvedStoryId((current) => current ?? effectiveStoryId);
         } else {
           setDbStory(null);
           setDbSourceVerses([]);
         }
       } finally {
-        if (!cancelled) setDbLoading(false);
+        if (!cancelled && shouldBlockUi) {
+          setDbLoading(false);
+        }
       }
     }
 
@@ -96,26 +135,25 @@ function StoryPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [isNewStory, storyId]);
+  }, [effectiveStoryId, isCreationRoute, urlParams.ready]);
 
-  const urlParams = parseStorySearchParams(searchParams);
   const passageId = urlParams.passageId ?? dbPassageSlug;
   const contentType = urlParams.contentType ?? dbContentType;
   const verseFrom = urlParams.verseFrom ?? dbVerseFrom;
   const verseTo = urlParams.verseTo ?? dbVerseTo;
   const ready = urlParams.ready;
 
-  const provisionalStory = isNewStory ? newStory : dbStory ?? undefined;
-  const hasExistingProgress = !isNewStory && (provisionalStory?.progress ?? 0) > 0;
+  const provisionalStory = routeIsNewStory ? newStory : dbStory ?? undefined;
+  const hasExistingProgress = !routeIsNewStory && (provisionalStory?.progress ?? 0) > 0;
   const skipGeneration = Boolean(
-    ready || hasExistingProgress || (!isNewStory && provisionalStory && passageId && contentType)
+    ready || hasExistingProgress || (!routeIsNewStory && provisionalStory && passageId && contentType)
   );
 
   const [generationComplete, setGenerationComplete] = useState(skipGeneration);
   const [generationMode, setGenerationMode] = useState<'initial' | 'regenerate'>('initial');
 
   const story = resolveDisplayedStory({
-    isNewStory,
+    isNewStory: routeIsNewStory,
     newStory,
     dbStory,
     generationComplete,
@@ -130,12 +168,29 @@ function StoryPageInner() {
     }
   }, [skipGeneration]);
 
+  useEffect(() => {
+    if (persistedStoryId) {
+      setResolvedStoryId(persistedStoryId);
+      setGenerationComplete(true);
+    }
+  }, [persistedStoryId]);
+
   const handleGenerationComplete = useCallback(
-    (result: { userStoryId: string; adaptationId: string; title: string }) => {
+    (result: {
+      userStoryId: string;
+      adaptationId: string;
+      title: string;
+      content: AdaptationContent;
+      quiz?: StoryQuizData;
+      adaptationNote?: string | null;
+    }) => {
       setGenerationComplete(true);
       setGenerationMode('initial');
       setResolvedStoryId(result.userStoryId);
       setAdaptationId(result.adaptationId);
+      setInitialAdaptationContent(result.content);
+      setInitialAdaptationQuiz(result.quiz ?? null);
+      setInitialAdaptationNote(result.adaptationNote ?? null);
       setNewStory((prev) => ({ ...prev, id: result.userStoryId, title: result.title }));
 
       if (activeProfile && !activeProfile.hasCreatedStory) {
@@ -143,25 +198,30 @@ function StoryPageInner() {
       }
 
       router.replace(
-        buildStoryUrl(result.userStoryId, {
+        buildStoryUrl(storyId, {
           passageId: passageId ?? undefined,
           contentType: contentType ?? undefined,
           ready: true,
+          historiaId: result.userStoryId,
           verseFrom: passageRange?.verseFrom,
           verseTo: passageRange?.verseTo,
-        })
+        }),
+        { scroll: false }
       );
     },
-    [activeProfile, contentType, passageId, passageRange, router]
+    [activeProfile, contentType, passageId, passageRange, router, storyId]
   );
 
   const handleRegenerate = useCallback(() => {
     setGenerationMode('regenerate');
     setGenerationComplete(false);
+    setInitialAdaptationContent(null);
+    setInitialAdaptationQuiz(null);
+    setInitialAdaptationNote(null);
   }, []);
 
   const handleViewerBack = useCallback(() => {
-    const id = resolvedStoryId ?? storyId;
+    const id = resolvedStoryId ?? effectiveStoryId;
     if (passageId) {
       router.push(
         buildStoryUrl(id, {
@@ -171,18 +231,21 @@ function StoryPageInner() {
         })
       );
     }
-  }, [passageId, passageRange, resolvedStoryId, router, storyId]);
+  }, [effectiveStoryId, passageId, passageRange, resolvedStoryId, router]);
 
   if (
     shouldShowDbLoading({
       dbLoading,
       ready: Boolean(ready),
       generationComplete,
-      isNewStory,
+      isNewStory: routeIsNewStory,
     })
   ) {
     return (
-      <div className="min-h-[40vh] flex items-center justify-center">
+      <div
+        className="min-h-[40vh] flex items-center justify-center"
+        data-testid="story-page-loading"
+      >
         <div className="w-10 h-10 rounded-full border-2 border-vida/20 border-t-vida animate-spin" />
       </div>
     );
@@ -205,8 +268,8 @@ function StoryPageInner() {
     );
   }
 
-  const suggestedPassageId = isNewStory ? undefined : getPassageIdFromReference(story.passage);
-  const backHref = isNewStory
+  const suggestedPassageId = routeIsNewStory ? undefined : getPassageIdFromReference(story.passage);
+  const backHref = routeIsNewStory
     ? getNewStoryEntryHref(activeProfile?.hasCreatedStory)
     : '/biblioteca';
 
@@ -257,6 +320,9 @@ function StoryPageInner() {
           adaptationId={adaptationId ?? undefined}
           userStoryId={resolvedStoryId ?? story.id}
           initialSourceVerses={dbSourceVerses.length > 0 ? dbSourceVerses : undefined}
+          initialAdaptationContent={initialAdaptationContent ?? undefined}
+          initialAdaptationQuiz={initialAdaptationQuiz ?? undefined}
+          initialAdaptationNote={initialAdaptationNote ?? undefined}
           onBack={handleViewerBack}
           onRegenerate={handleRegenerate}
         />

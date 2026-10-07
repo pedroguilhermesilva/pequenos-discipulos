@@ -24,6 +24,10 @@ Gera ou reutiliza adaptações de passagens bíblicas.
 
 **Limites de plano:** `assertCanGenerate(userId, tier, contentType)` recebe o **`tier` lido do Postgres** em cada request via `requireCurrentUser()` — **não** vem do JWT. Alterar `subscriptionTier` na BD reflecte-se de imediato; não é preciso logout/login.
 
+**Resposta:** inclui `content` (e `quiz` quando existir) para o viewer renderizar sem segundo fetch.
+
+**URL pós-geração:** mantém `/stories/nova?…&historia=<userStoryId>&pronto=1` — evita remount ao trocar o segmento `[id]`.
+
 **API:** `POST /api/stories/generate` (autenticada).
 
 ## StoryCacheService
