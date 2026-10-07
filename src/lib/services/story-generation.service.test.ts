@@ -108,6 +108,11 @@ describe('StoryGenerationService cache-first behavior', () => {
     );
     expect(llm.generateStory).toHaveBeenCalledOnce();
     expect(planLimits.assertCanGenerate).toHaveBeenCalledOnce();
+
+    const llmPayload = vi.mocked(llm.generateStory).mock.calls[0]?.[0];
+    expect(JSON.stringify(llmPayload)).not.toMatch(/child-1|Davi|Maria|João/i);
+    expect(llmPayload).not.toHaveProperty('childName');
+    expect(llmPayload).not.toHaveProperty('childProfileId');
   });
 
   it('skips cache lookup after three cached views and generates anew', async () => {

@@ -244,10 +244,13 @@ function ProfileAccordionItem({
               <div>
                 <label
                   htmlFor={`child-name-${profile.id}`}
-                  className="block text-sm font-semibold text-tinta mb-2"
+                  className="block text-sm font-semibold text-tinta mb-1"
                 >
-                  Nome da criança
+                  Apelido da criança
                 </label>
+                <p className="text-xs text-oliva mb-2">
+                  Prefira um apelido — não use o nome completo. O apelido não vai para IA nem TTS.
+                </p>
                 <input
                   id={`child-name-${profile.id}`}
                   type="text"
@@ -256,7 +259,7 @@ function ProfileAccordionItem({
                     setPreferences((prev) => ({ ...prev, childName: e.target.value }))
                   }
                   className="w-full h-12 rounded-livro border border-borda bg-white text-tinta px-4 focus:ring-2 focus:ring-vida focus:border-vida outline-none transition-all"
-                  placeholder="Ex: Davi"
+                  placeholder="Ex: Davi, Lulu"
                 />
               </div>
 

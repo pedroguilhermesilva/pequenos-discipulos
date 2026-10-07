@@ -39,7 +39,14 @@ Opcionais em produção: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (
 
 Utilizador seed: `dev@pequenos-discipulos.local` / `devpassword123` (após `npm run db:seed`).
 
-Roteiro manual: `scripts/manual-test-pr1.md`.
+Roteiros manuais: `scripts/manual-test-pr1.md`, `scripts/manual-test-issue-15.md` (LGPD / privacidade).
+
+## Privacidade (LGPD)
+
+- Páginas legais: `/privacidade`, `/termos`
+- Consentimento: checkbox no cadastro por e-mail; tela `/consentimento` para Google OAuth
+- Campos no `User`: `consentAcceptedAt`, `consentVersion` (`src/lib/privacy/constants.ts`)
+- Exportação: `GET /api/account/export` · Exclusão: Configurações → `UserDataService.deleteAccount`
 
 ## Documentação de módulos
 

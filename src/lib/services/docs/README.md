@@ -43,6 +43,23 @@ CRUD de perfis de criança; limites por plano via `PlanLimitsService`.
 
 **Actions:** `src/lib/profiles/actions.ts`.
 
+O perfil guarda um **apelido** (campo `name` / `childName` nas preferências) — nunca é enviado ao LLM nem ao TTS.
+
+## UserDataService (LGPD)
+
+Exportação, exclusão de conta e registo de consentimento.
+
+- **`recordConsent(userId, version)`** — grava `consentAcceptedAt` + `consentVersion` no `User`.
+- **`exportUserData(userId)`** — JSON com dados da conta (isolamento por `userId`).
+- **`deleteAccount(userId)`** — anonimiza adaptações comunitárias (`createdByUserId → null`), apaga áudios privados no Blob usados só por este utilizador, depois apaga o `User` (cascade).
+
+**Actions:** `src/lib/privacy/actions.ts`  
+**API:** `GET /api/account/export` (autenticada, download JSON)  
+**Páginas legais:** `/privacidade`, `/termos`  
+**Consentimento OAuth:** `/consentimento` (redirect via `src/proxy.ts` se `consentVersion` em falta)
+
+Versão actual dos termos: `CURRENT_CONSENT_VERSION` em `src/lib/privacy/constants.ts`.
+
 ## VoteService
 
 Votos e aprovação familiar — **sempre** atrás de parent gate validado no servidor (`/api/votes`).
