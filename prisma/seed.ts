@@ -4,6 +4,7 @@ import { A_ESTRELA_DE_MATEUS_PAGES } from '../src/lib/stories/story-viewer-pages
 import { getStoryQuiz } from '../src/lib/stories/story-quiz';
 import { DEFAULT_PREFERENCES } from '../src/lib/onboarding/defaults';
 import { DEFAULT_BIBLE_VERSION_ID } from '@/lib/stories/bible-versions';
+import { CURRENT_CONSENT_VERSION } from '@/lib/privacy/constants';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +25,8 @@ async function main() {
       name: 'Conta de desenvolvimento',
       fullName: 'Conta de desenvolvimento',
       passwordHash,
+      consentAcceptedAt: new Date(),
+      consentVersion: CURRENT_CONSENT_VERSION,
     },
     create: {
       id: DEV_USER_ID,
@@ -32,6 +35,8 @@ async function main() {
       fullName: 'Conta de desenvolvimento',
       passwordHash,
       subscriptionTier: 'free',
+      consentAcceptedAt: new Date(),
+      consentVersion: CURRENT_CONSENT_VERSION,
     },
   });
 

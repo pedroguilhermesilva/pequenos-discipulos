@@ -8,6 +8,8 @@ import { Logo } from '@/components/ui/Logo';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { LegalFooterLinks } from '@/components/legal/LegalFooterLinks';
+import { CURRENT_CONSENT_VERSION } from '@/lib/privacy/constants';
 import { sanitizeCallbackPath } from '@/lib/auth/safe-redirect-client';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Credenciais inválidas.';
@@ -23,6 +25,7 @@ export function LoginPageContent() {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   const hasGoogle = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
 
@@ -59,11 +62,23 @@ export function LoginPageContent() {
     setLoading(true);
     setMessage('');
 
+    if (!consentAccepted) {
+      setMessage('Aceite a Política de Privacidade e os Termos de Uso para criar a conta.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName }),
+        body: JSON.stringify({
+          email,
+          password,
+          fullName,
+          consentAccepted: true,
+          consentVersion: CURRENT_CONSENT_VERSION,
+        }),
       });
       const json = (await response.json()) as { ok: boolean; message?: string };
 
@@ -185,6 +200,28 @@ export function LoginPageContent() {
               />
             </div>
 
+            {mode === 'signup' && (
+              <label className="flex items-start gap-3 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={(e) => setConsentAccepted(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-borda text-vida focus:ring-vida"
+                />
+                <span className="text-sm text-oliva leading-relaxed">
+                  Li e aceito a{' '}
+                  <Link href="/privacidade" target="_blank" className="text-vida font-semibold hover:underline">
+                    Política de Privacidade
+                  </Link>{' '}
+                  e os{' '}
+                  <Link href="/termos" target="_blank" className="text-vida font-semibold hover:underline">
+                    Termos de Uso
+                  </Link>
+                  .
+                </span>
+              </label>
+            )}
+
             <div className="flex flex-col gap-3 pt-2">
               <PrimaryButton type="submit" disabled={loading} fullWidth>
                 {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
@@ -238,6 +275,10 @@ export function LoginPageContent() {
               {message}
             </p>
           )}
+
+          <div className="mt-8 pt-6 border-t border-borda">
+            <LegalFooterLinks className="text-xs" />
+          </div>
         </div>
       </div>
     </div>

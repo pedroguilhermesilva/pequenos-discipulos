@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 import { ProfilePreferencesAccordion } from '@/components/settings/ProfilePreferencesAccordion';
 import { SettingsSection } from '@/components/settings/SettingsSection';
+import { DataPrivacySection } from '@/components/settings/DataPrivacySection';
 import { SubscriptionPlansModal } from '@/components/settings/SubscriptionPlansModal';
 import { UsageLimitBar } from '@/components/settings/UsageLimitBar';
 import { saveUserProfile } from '@/lib/user/actions';
@@ -265,6 +266,8 @@ export function SettingsContent({ initialSettings }: SettingsContentProps) {
           )}
         </div>
       </SettingsSection>
+
+      <DataPrivacySection isDemo={settings.isDemo} />
 
       <SubscriptionPlansModal
         open={plansModalOpen}

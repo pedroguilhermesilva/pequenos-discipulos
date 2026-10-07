@@ -268,6 +268,33 @@ describe('AudioService.prepareAdaptationAudio', () => {
     expect(prisma.passageAdaptation.update).not.toHaveBeenCalled();
   });
 
+  it('sends only story text to TTS — never child profile names', async () => {
+    const content = twoPageContent();
+    const childName = 'Maria Clara';
+    prisma.passageAdaptation.findUnique.mockResolvedValue({
+      id: 'ad-1',
+      content,
+    });
+    prisma.audioAsset.findUnique.mockResolvedValue(null);
+    prisma.audioAsset.create.mockResolvedValue({
+      id: 'asset-1',
+      filePath: `audio/ad-1/${STORY_NARRATION_BLOCK_KEY}.mp3`,
+    });
+    tts.generateSpeechWithTimestamps.mockResolvedValue({
+      buffer: Buffer.from('audio'),
+      contentType: 'audio/mpeg',
+      durationMs: 1840,
+      alignment: alignmentFromText('Página um. Página dois.'),
+    });
+
+    const service = new AudioService(prisma as never, tts, sfx as never, storage as never);
+    await service.ensurePageNarration('ad-1', 0);
+
+    const ttsCall = vi.mocked(tts.generateSpeechWithTimestamps).mock.calls[0]?.[0];
+    expect(ttsCall?.text).not.toContain(childName);
+    expect(JSON.stringify(ttsCall)).not.toMatch(/childName|childProfile|apelido/i);
+  });
+
   it('pre-generates the full story narration for audio adaptations', async () => {
     vi.mocked(prisma.passageAdaptation.findUnique).mockResolvedValue({
       id: 'adaptation-audio',

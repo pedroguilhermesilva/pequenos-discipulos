@@ -22,6 +22,7 @@ import { StoryGenerationService } from '@/lib/services/story-generation.service'
 import { VoteService } from '@/lib/services/vote.service';
 import { AudioService } from '@/lib/services/audio.service';
 import { StorageAccessService } from '@/lib/services/storage-access.service';
+import { UserDataService } from '@/lib/services/user-data.service';
 
 const adaptationRepo = new PrismaAdaptationRepository(prisma);
 const childProfileRepo = new PrismaChildProfileRepository(prisma);
@@ -116,6 +117,7 @@ export const container = {
     votes: new VoteService(voteRepo, adaptationRepo, userStoryRepo),
     audio: audioService,
     storageAccess: storageAccessService,
+    userData: new UserDataService(prisma, storageProvider),
     collections: collectionRepo,
   },
 };

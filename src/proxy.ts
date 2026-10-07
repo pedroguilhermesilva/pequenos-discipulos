@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/auth';
 import { sanitizeCallbackPath } from '@/lib/auth/safe-redirect';
+import { prisma } from '@/lib/db/prisma';
+import { isConsentExemptPath, userNeedsConsent } from '@/lib/privacy/require-consent';
 
-const PUBLIC_PATHS = ['/', '/login'];
+const PUBLIC_PATHS = ['/', '/login', '/privacidade', '/termos'];
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;
@@ -27,6 +29,15 @@ export async function proxy(request: NextRequest) {
         const callbackUrl = sanitizeCallbackPath(
           request.nextUrl.searchParams.get('callbackUrl')
         );
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { consentAcceptedAt: true, consentVersion: true },
+        });
+        if (user && userNeedsConsent(user)) {
+          const consentUrl = new URL('/consentimento', request.url);
+          consentUrl.searchParams.set('callbackUrl', callbackUrl);
+          return NextResponse.redirect(consentUrl);
+        }
         return NextResponse.redirect(new URL(callbackUrl, request.url));
       }
     }
@@ -38,6 +49,19 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', sanitizeCallbackPath(pathname));
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (!isConsentExemptPath(pathname)) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { consentAcceptedAt: true, consentVersion: true },
+    });
+
+    if (user && userNeedsConsent(user)) {
+      const consentUrl = new URL('/consentimento', request.url);
+      consentUrl.searchParams.set('callbackUrl', sanitizeCallbackPath(pathname));
+      return NextResponse.redirect(consentUrl);
+    }
   }
 
   return response;

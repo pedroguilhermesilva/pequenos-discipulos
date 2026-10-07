@@ -3,11 +3,22 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { CURRENT_CONSENT_VERSION } from '@/lib/privacy/constants';
 
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'A senha deve ter pelo menos 8 caracteres.'),
   fullName: z.string().min(1).optional(),
+  consentAccepted: z.literal(true, {
+    errorMap: () => ({
+      message: 'É necessário aceitar a Política de Privacidade e os Termos de Uso.',
+    }),
+  }),
+  consentVersion: z.literal(CURRENT_CONSENT_VERSION, {
+    errorMap: () => ({
+      message: 'Versão dos termos desatualizada. Recarregue a página e tente novamente.',
+    }),
+  }),
 });
 
 const GENERIC_REGISTER_FAILURE =
@@ -35,6 +46,8 @@ export async function POST(request: Request) {
         email,
         fullName: body.fullName?.trim() || email.split('@')[0],
         passwordHash,
+        consentAcceptedAt: new Date(),
+        consentVersion: body.consentVersion,
       },
     });
 

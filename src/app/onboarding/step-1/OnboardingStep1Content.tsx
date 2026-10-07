@@ -81,15 +81,19 @@ export function OnboardingStep1Content() {
               <div className="flex flex-col gap-3">
                 <label htmlFor="child-name" className="text-tinta text-lg font-semibold flex items-center gap-2">
                   <span className="material-symbols-outlined text-vida">person</span>
-                  Qual o nome da criança?
+                  Apelido da criança
                 </label>
+                <p className="text-sm text-oliva -mt-1">
+                  Use um apelido ou nome curto — não precisa ser o nome completo. Esse apelido fica
+                  só no app e nunca é enviado para serviços de IA ou voz.
+                </p>
                 <input
                   id="child-name"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full h-14 rounded-livro border border-borda bg-white text-tinta px-5 text-lg focus:ring-2 focus:ring-vida focus:border-vida outline-none transition-all placeholder:text-oliva/40"
-                  placeholder="Ex: Davi"
+                  placeholder="Ex: Davi, Lulu, Joãozinho"
                 />
               </div>
 

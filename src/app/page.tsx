@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LegalFooterLinks } from '@/components/legal/LegalFooterLinks';
 import { Logo } from '@/components/ui/Logo';
 
 export default function HomePage() {
@@ -76,7 +77,8 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className="py-6 text-center text-oliva/70 text-sm">
+      <footer className="py-6 flex flex-col items-center gap-3 text-oliva/70 text-sm">
+        <LegalFooterLinks />
         <p>© {new Date().getFullYear()} Pequenos Discípulos</p>
       </footer>
     </div>
