@@ -27,11 +27,12 @@ function buildStyleSrc(isPreview: boolean): string {
 
 function buildScriptSrc(nonce: string, isDev: boolean, isPreview: boolean): string {
   if (isPreview) {
-    // strict-dynamic disables host allowlists; Vercel Live scripts are external and
-    // do not carry our nonce, so preview uses an explicit host allowlist instead.
+    // Vercel Toolbar injects inline scripts without nonce. Browsers ignore
+    // 'unsafe-inline' when a nonce is also listed in script-src, so preview
+    // omits the nonce entirely (production stays strict). See:
+    // https://vercel.com/docs/vercel-toolbar/managing-toolbar#using-a-content-security-policy
     const sources = [
       "'self'",
-      `'nonce-${nonce}'`,
       'https://vercel.live',
       'https://vercel.com',
       "'unsafe-inline'",
@@ -128,13 +129,18 @@ export function applyContentSecurityPolicy(
   options?: Omit<ContentSecurityPolicyOptions, 'nonce'>
 ): string {
   const nonce = generateCspNonce();
+  const isPreview = options?.isPreview ?? process.env.VERCEL_ENV === 'preview';
   const csp = buildContentSecurityPolicy({
     nonce,
     isDev: options?.isDev ?? process.env.NODE_ENV === 'development',
-    isPreview: options?.isPreview ?? process.env.VERCEL_ENV === 'preview',
+    isPreview,
   });
 
-  requestHeaders.set('x-nonce', nonce);
+  // Next.js reads x-nonce for production script/style tagging; preview CSP
+  // intentionally omits the nonce from script-src so unsafe-inline applies.
+  if (!isPreview) {
+    requestHeaders.set('x-nonce', nonce);
+  }
   requestHeaders.set('Content-Security-Policy', csp);
   responseHeaders.set('Content-Security-Policy', csp);
   applyStaticSecurityHeaders(responseHeaders);

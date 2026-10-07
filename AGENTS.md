@@ -18,7 +18,8 @@ npm test
 npm run lint
 npm run build
 npm run test:e2e
-npm run test:e2e:csp   # CSP e2e (build produção + fixture /test/csp-fixture)
+npm run test:e2e:csp          # CSP e2e produção (bloqueia scripts maliciosos)
+npm run test:e2e:csp-preview  # CSP e2e preview (permite inline do Toolbar)
 npm run dev
 ```
 

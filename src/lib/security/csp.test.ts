@@ -79,10 +79,10 @@ describe('buildContentSecurityPolicy', () => {
     });
 
     const scriptSrc = scriptSrcDirective(csp);
-    expect(scriptSrc).toContain(`'nonce-${TEST_NONCE}'`);
-    expect(scriptSrc).toContain('https://vercel.live');
-    expect(scriptSrc).toContain('https://vercel.com');
-    expect(scriptSrc).toContain("'unsafe-inline'");
+    expect(scriptSrc).toBe(
+      "script-src 'self' https://vercel.live https://vercel.com 'unsafe-inline'"
+    );
+    expect(scriptSrc).not.toContain('nonce-');
     expect(scriptSrc).not.toContain("'strict-dynamic'");
 
     const styleSrc = styleSrcDirective(csp);
@@ -126,8 +126,10 @@ describe('applyContentSecurityPolicy', () => {
       const requestHeaders = new Headers();
       const responseHeaders = new Headers();
       const csp = applyContentSecurityPolicy(requestHeaders, responseHeaders);
-      expect(scriptSrcDirective(csp)).not.toContain("'strict-dynamic'");
-      expect(scriptSrcDirective(csp)).toContain('https://vercel.live');
+      expect(scriptSrcDirective(csp)).toBe(
+        "script-src 'self' https://vercel.live https://vercel.com 'unsafe-inline'"
+      );
+      expect(requestHeaders.get('x-nonce')).toBeNull();
     } finally {
       if (previous === undefined) {
         delete process.env.VERCEL_ENV;

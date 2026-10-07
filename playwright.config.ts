@@ -5,6 +5,8 @@ const databaseUrl =
   'postgresql://postgres:postgres@localhost:5432/pequenos_discipulos';
 
 const isCspProduction = process.env.E2E_CSP_PRODUCTION === '1';
+const isCspPreview = process.env.E2E_CSP_PREVIEW === '1';
+const isCspE2E = isCspProduction || isCspPreview;
 
 const sharedServerEnv = {
   ...process.env,
@@ -18,6 +20,13 @@ const sharedServerEnv = {
     ? {
         E2E_CSP_FIXTURE: '1',
         NODE_ENV: 'production',
+      }
+    : {}),
+  ...(isCspPreview
+    ? {
+        E2E_CSP_FIXTURE: '1',
+        NODE_ENV: 'production',
+        VERCEL_ENV: 'preview',
       }
     : {}),
 };
@@ -35,17 +44,19 @@ export default defineConfig({
   },
   projects: isCspProduction
     ? [{ name: 'csp-production', use: { ...devices['Desktop Chrome'] } }]
-    : [
-        {
-          name: 'chromium',
-          use: { ...devices['Desktop Chrome'] },
-          testIgnore: /csp-violations\.spec\.ts/,
-        },
-      ],
+    : isCspPreview
+      ? [{ name: 'csp-preview', use: { ...devices['Desktop Chrome'] } }]
+      : [
+          {
+            name: 'chromium',
+            use: { ...devices['Desktop Chrome'] },
+            testIgnore: /csp-(violations|preview)\.spec\.ts/,
+          },
+        ],
   webServer: {
-    command: isCspProduction ? 'npm start' : 'npm run dev',
+    command: isCspE2E ? 'npm start' : 'npm run dev',
     url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI && !isCspProduction,
+    reuseExistingServer: !process.env.CI && !isCspE2E,
     timeout: 120_000,
     env: sharedServerEnv,
   },
