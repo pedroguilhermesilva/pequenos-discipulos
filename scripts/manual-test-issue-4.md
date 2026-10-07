@@ -6,7 +6,7 @@
 cp .env.example .env
 # Preencher DATABASE_URL, AUTH_SECRET, BLOB_READ_WRITE_TOKEN (ou omitir para ./storage local)
 # Google TTS: GOOGLE_TTS_API_KEY=... OU GOOGLE_TTS_CREDENTIALS_JSON='{"client_email":"...","private_key":"..."}'
-# GOOGLE_TTS_VOICE=pt-BR-Wavenet-A
+# GOOGLE_TTS_VOICE=pt-BR-Neural2-C
 # SFX (opcional): ELEVENLABS_API_KEY=...
 # Sem credenciais Google: TTS_USE_STUB=true
 

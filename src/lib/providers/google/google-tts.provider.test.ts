@@ -28,7 +28,7 @@ describe('GoogleTtsProvider', () => {
 
     const provider = new GoogleTtsProvider({
       apiKey: 'test-key',
-      voiceName: 'pt-BR-Wavenet-A',
+      voiceName: 'pt-BR-Neural2-C',
       languageCode: 'pt-BR',
     });
 
@@ -53,7 +53,7 @@ describe('GoogleTtsProvider', () => {
     expect(body.input.ssml).toContain('<mark name="w0"/>Olá <mark name="w1"/>Deus');
     expect(body.voice).toEqual({
       languageCode: 'pt-BR',
-      name: 'pt-BR-Wavenet-A',
+      name: 'pt-BR-Neural2-C',
     });
     expect(result.alignment?.words).toEqual(['Olá', 'Deus']);
     expect(result.contentType).toBe('audio/mpeg');
@@ -70,7 +70,7 @@ describe('GoogleTtsProvider', () => {
 
     const provider = new GoogleTtsProvider({
       apiKey: 'test-key',
-      voiceName: 'pt-BR-Wavenet-A',
+      voiceName: 'pt-BR-Neural2-C',
       languageCode: 'pt-BR',
     });
 
@@ -97,7 +97,7 @@ describe('GoogleTtsProvider', () => {
 
     const provider = new GoogleTtsProvider({
       apiKey: 'bad-key',
-      voiceName: 'pt-BR-Wavenet-A',
+      voiceName: 'pt-BR-Neural2-C',
       languageCode: 'pt-BR',
     });
 

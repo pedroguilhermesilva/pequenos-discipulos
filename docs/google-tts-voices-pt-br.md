@@ -42,15 +42,23 @@ Pesquisa com base na [documentação oficial de preços](https://cloud.google.co
 
 ## Recomendação para o app
 
-**Voz padrão sugerida:** `pt-BR-Wavenet-A` (feminina)
+**Voz padrão:** `pt-BR-Neural2-C` (feminina)
 
-- Suporta `<mark>` + timepoints (obrigatório para highlight palavra a palavra).
-- US$ 4 / milhão — ~4× mais barato que ElevenLabs típico em volume similar.
-- Tom adequado a narração infantil / materna sem ser “voz de criança” (Google não oferece voz infantil dedicada em pt-BR).
+Escolhida após teste de narração: WaveNet soou robótica; Neural2 entrega tom mais narrativo e natural para histórias infantis.
 
-**Upgrade opcional:** `pt-BR-Neural2-C` (feminina) se a qualidade narrativa justificar US$ 16 / milhão.
+Confirmação na documentação oficial:
 
-Configure via env `GOOGLE_TTS_VOICE=pt-BR-Wavenet-A` (ou `pt-BR-Neural2-C`).
+- **Existência:** listada em [Vozes e idiomas compatíveis](https://cloud.google.com/text-to-speech/docs/voices?hl=pt-br) como `pt-BR-Neural2-C` (Premium, feminina).
+- **SSML `<mark>` + timepoints:** Neural2 tem controlabilidade SSML; timepoints via `<mark>` + `enableTimePointing: ["SSML_MARK"]` na API v1beta1 ([SSML timepoints](https://cloud.google.com/text-to-speech/docs/ssml?hl=pt-br), [text:synthesize](https://cloud.google.com/text-to-speech/docs/reference/rest/v1beta1/text/synthesize)).
+
+Outras Neural2 pt-BR femininas (`pt-BR-Neural2-A`, `C`) também suportam SSML; `C` foi a preferida no teste de escuta.
+
+- **Preço:** US$ 16 / milhão (cota grátis 1M/mês).
+- **Cache:** áudio gerado fica associado à voz (`story-narration@<voz>` no `AudioAsset` + campo `storyNarrationVoice` no conteúdo). Trocar a voz não reaproveita narração antiga.
+
+**Alternativa económica:** `pt-BR-Wavenet-A` (US$ 4 / milhão) se o custo for prioritário.
+
+Configure via env `GOOGLE_TTS_VOICE=pt-BR-Neural2-C`.
 
 ## Referências
 

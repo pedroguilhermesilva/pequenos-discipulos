@@ -65,6 +65,8 @@ export const adaptationContentSchema = z.object({
   pages: z.array(storyPageSchema).min(1),
   storyNarrationAudioPath: z.string().optional(),
   storyNarrationAlignment: narrationAlignmentSchema.optional(),
+  /** Google TTS voice used when story narration was generated (cache invalidation). */
+  storyNarrationVoice: z.string().optional(),
 });
 
 export const quizOptionSchema = z.object({

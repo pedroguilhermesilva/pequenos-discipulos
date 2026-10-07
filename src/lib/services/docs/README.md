@@ -31,7 +31,7 @@ Seleção de adaptações já existentes por `voteScore`, excluindo as do própr
 
 Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
 
-- **Narração da história:** uma síntese TTS para o texto completo (`story-narration`), com alinhamento **por palavra** (timepoints SSML `<mark>` do Google TTS v1beta1). Slices por página em `narration-alignment.ts`.
+- **Narração da história:** uma síntese TTS para o texto completo (`story-narration@<voz>` no cache), com alinhamento **por palavra** (timepoints SSML `<mark>` do Google TTS v1beta1). Slices por página em `narration-alignment.ts`. Campo `storyNarrationVoice` no conteúdo invalida cache ao mudar voz.
 - **Blocos interactivos:** TTS curto (`generateSpeech`) ou SFX ElevenLabs conforme `resolve-block-audio.ts`.
 - **LGPD:** o texto enviado ao TTS vem só do conteúdo da história — nunca o apelido da criança (`ChildProfile.name`).
 
@@ -39,7 +39,7 @@ Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
 
 | Provider | Env | Uso |
 |----------|-----|-----|
-| `GoogleTtsProvider` | `GOOGLE_TTS_API_KEY` **ou** `GOOGLE_TTS_CREDENTIALS_JSON`, `GOOGLE_TTS_VOICE` (default `pt-BR-Wavenet-A`) | Narração + timestamps |
+| `GoogleTtsProvider` | `GOOGLE_TTS_API_KEY` **ou** `GOOGLE_TTS_CREDENTIALS_JSON`, `GOOGLE_TTS_VOICE` (default `pt-BR-Neural2-C`) | Narração + timestamps |
 | `StubTtsProvider` | `TTS_USE_STUB=true` ou sem credenciais Google | Dev / CI |
 | `ElevenLabsSfxProvider` | `ELEVENLABS_API_KEY` | Efeitos sonoros (removido no #5) |
 

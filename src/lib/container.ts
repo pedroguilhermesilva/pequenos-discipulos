@@ -3,6 +3,10 @@ import { createStorageProvider } from '@/lib/providers/create-storage-provider';
 import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
+import {
+  DEFAULT_GOOGLE_TTS_LANGUAGE,
+  DEFAULT_GOOGLE_TTS_VOICE,
+} from '@/lib/providers/google/google-tts-config';
 import { GoogleTtsProvider } from '@/lib/providers/google/google-tts.provider';
 import { StubSfxProvider } from '@/lib/providers/stubs/stub-sfx.provider';
 import { StubTtsProvider } from '@/lib/providers/stubs/stub-tts.provider';
@@ -48,9 +52,9 @@ const llmProvider = useLlmStub
 const googleTtsApiKey = process.env.GOOGLE_TTS_API_KEY?.trim() ?? '';
 const googleTtsCredentialsJson = process.env.GOOGLE_TTS_CREDENTIALS_JSON?.trim() ?? '';
 const googleTtsVoice =
-  process.env.GOOGLE_TTS_VOICE?.trim() || 'pt-BR-Wavenet-A';
+  process.env.GOOGLE_TTS_VOICE?.trim() || DEFAULT_GOOGLE_TTS_VOICE;
 const googleTtsLanguage =
-  process.env.GOOGLE_TTS_LANGUAGE?.trim() || 'pt-BR';
+  process.env.GOOGLE_TTS_LANGUAGE?.trim() || DEFAULT_GOOGLE_TTS_LANGUAGE;
 const useTtsStub =
   process.env.TTS_USE_STUB === 'true' ||
   (!googleTtsApiKey && !googleTtsCredentialsJson);
@@ -83,7 +87,13 @@ const storageProvider = createStorageProvider();
 const storageAccessService = new StorageAccessService(prisma);
 
 const planLimitsService = new PlanLimitsService(usageRepo, childProfileRepo);
-const audioService = new AudioService(prisma, ttsProvider, sfxProvider, storageProvider);
+const audioService = new AudioService(
+  prisma,
+  ttsProvider,
+  sfxProvider,
+  storageProvider,
+  googleTtsVoice
+);
 const storyCacheService = new StoryCacheService(prisma);
 
 export const container = {
