@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Fraunces, DM_Sans } from "next/font/google";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
@@ -21,11 +22,13 @@ export const metadata: Metadata = {
   description: "Histórias bíblicas personalizadas para cada fase do crescimento do seu pequeno.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
+
   return (
     <html lang="pt-BR">
       <head>

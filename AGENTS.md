@@ -5,7 +5,7 @@
 - **Camada de serviços:** `src/lib/services/` — lógica de negócio (equivalente a “use cases” de outros projetos).
 - **Repositórios:** `src/lib/repositories/` — acesso Prisma.
 - **Server Actions:** `src/lib/**/actions.ts` e rotas em `src/app/api/`.
-- **Auth:** NextAuth (Auth.js) em `src/auth.ts`; proteção de rotas em `src/proxy.ts` (Next 16).
+- **Auth:** NextAuth (Auth.js) em `src/auth.ts`; proteção de rotas e **CSP com nonce** em `src/proxy.ts` (Next 16).
 - **Conta vs perfis:** `User` = pais; `ChildProfile` = crianças na conta.
 
 ## Comandos

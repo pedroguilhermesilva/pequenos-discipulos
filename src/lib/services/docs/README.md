@@ -5,6 +5,7 @@ Camada de negócio da aplicação (`src/lib/services/`).
 ## Auth e sessão
 
 - **NextAuth:** `src/auth.ts` — Credentials (email/senha) + Google opcional.
+- **CSP / headers:** `src/lib/security/csp.ts` + `src/proxy.ts` — nonce por pedido, `strict-dynamic`, sem `unsafe-inline`/`unsafe-eval` em produção; Vercel Live só em preview (`VERCEL_ENV=preview`).
 - **Sessão nas APIs:** `requireCurrentUser()` em `src/lib/auth/get-current-user.ts`.
 - **Parent gate:** `src/lib/auth/parent-gate.ts` + `POST /api/parent-gate/verify` — cookie JWT antes de votar/aprovar.
 - **Rate limit:** `src/lib/rate-limit.ts` — login (`/api/auth/login`), registo (`/api/auth/register`). Upstash Redis quando `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` estão definidos; fallback in-memory em dev.

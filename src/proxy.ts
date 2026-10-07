@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/auth';
 import { sanitizeCallbackPath } from '@/lib/auth/safe-redirect';
+import { applyContentSecurityPolicy } from '@/lib/security/csp';
 
 const PUBLIC_PATHS = ['/', '/login'];
 
@@ -11,14 +12,25 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+function withSecurityHeaders(request: NextRequest): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  applyContentSecurityPolicy(requestHeaders, response.headers);
+  return response;
+}
+
+function withSecurityHeadersRedirect(response: NextResponse): NextResponse {
+  applyContentSecurityPolicy(new Headers(), response.headers);
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  const response = NextResponse.next();
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
   if (isPublicPath(pathname)) {
     if (pathname === '/login') {
@@ -27,20 +39,22 @@ export async function proxy(request: NextRequest) {
         const callbackUrl = sanitizeCallbackPath(
           request.nextUrl.searchParams.get('callbackUrl')
         );
-        return NextResponse.redirect(new URL(callbackUrl, request.url));
+        return withSecurityHeadersRedirect(
+          NextResponse.redirect(new URL(callbackUrl, request.url))
+        );
       }
     }
-    return response;
+    return withSecurityHeaders(request);
   }
 
   const session = await auth();
   if (!session?.user) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', sanitizeCallbackPath(pathname));
-    return NextResponse.redirect(loginUrl);
+    return withSecurityHeadersRedirect(NextResponse.redirect(loginUrl));
   }
 
-  return response;
+  return withSecurityHeaders(request);
 }
 
 export const config = {
