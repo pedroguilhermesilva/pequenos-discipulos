@@ -5,7 +5,7 @@
 - **Camada de serviços:** `src/lib/services/` — lógica de negócio (equivalente a “use cases” de outros projetos).
 - **Repositórios:** `src/lib/repositories/` — acesso Prisma.
 - **Server Actions:** `src/lib/**/actions.ts` e rotas em `src/app/api/`.
-- **Auth:** NextAuth (Auth.js) em `src/auth.ts`; proteção de rotas em `src/proxy.ts` (Next 16).
+- **Auth:** NextAuth (Auth.js) em `src/auth.ts`; proteção de rotas e **CSP com nonce** em `src/proxy.ts` (Next 16).
 - **Conta vs perfis:** `User` = pais; `ChildProfile` = crianças na conta.
 
 ## Comandos
@@ -18,6 +18,8 @@ npm test
 npm run lint
 npm run build
 npm run test:e2e
+npm run test:e2e:csp          # CSP e2e produção (bloqueia scripts maliciosos)
+npm run test:e2e:csp-preview  # CSP e2e preview (permite inline do Toolbar)
 npm run dev
 ```
 
