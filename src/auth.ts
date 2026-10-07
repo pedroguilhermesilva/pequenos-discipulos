@@ -3,8 +3,10 @@ import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
+import { syncOAuthUserFullName } from '@/lib/auth/oauth-user';
 import { prisma } from '@/lib/db/prisma';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { resolveUserDisplayName } from '@/lib/user/display-name';
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
@@ -43,7 +45,7 @@ export async function authorizeCredentials(
   return {
     id: user.id,
     email: user.email,
-    name: user.fullName,
+    name: resolveUserDisplayName(user),
     image: user.image,
   };
 }
@@ -77,16 +79,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ]
       : []),
   ],
+  events: {
+    async createUser({ user }) {
+      await syncOAuthUserFullName(prisma, user.id!, user.name);
+    },
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
+      }
+      if (user?.name) {
+        token.name = user.name;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        if (typeof token.name === 'string') {
+          session.user.name = token.name;
+        }
       }
       return session;
     },

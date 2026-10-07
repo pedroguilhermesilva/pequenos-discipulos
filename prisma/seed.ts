@@ -21,12 +21,14 @@ async function main() {
     where: { id: DEV_USER_ID },
     update: {
       email: 'dev@pequenos-discipulos.local',
+      name: 'Conta de desenvolvimento',
       fullName: 'Conta de desenvolvimento',
       passwordHash,
     },
     create: {
       id: DEV_USER_ID,
       email: 'dev@pequenos-discipulos.local',
+      name: 'Conta de desenvolvimento',
       fullName: 'Conta de desenvolvimento',
       passwordHash,
       subscriptionTier: 'free',
