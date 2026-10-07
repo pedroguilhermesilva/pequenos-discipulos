@@ -7,7 +7,9 @@ build
 .env*.local
 .vercel
 *.log
-storage/
+/storage/
+!src/lib/storage/
+!src/app/api/storage/
 coverage/
 test-results/
 playwright-report/

@@ -43,7 +43,6 @@ describe('ChatCompletionsLlmProvider', () => {
     });
 
     const result = await provider.generateStory({
-      sourceText: 'Texto bíblico',
       reference: 'Mateus 1:1-3',
       ageTier: '3-5',
       languageStyle: 'simple',

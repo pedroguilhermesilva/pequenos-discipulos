@@ -3,7 +3,7 @@ import type { AgeTier } from '@/lib/stories/age-tiers';
 import type { ContentType } from '@/lib/stories/types';
 
 export interface LlmGenerateStoryParams {
-  sourceText: string;
+  /** Referência bíblica legível (ex.: Mateus 2:1–3) */
   reference: string;
   ageTier: AgeTier;
   languageStyle: string;

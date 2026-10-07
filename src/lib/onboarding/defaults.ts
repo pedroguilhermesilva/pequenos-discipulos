@@ -3,7 +3,7 @@ import { DEFAULT_BIBLE_VERSION_ID } from '@/lib/stories/bible-versions';
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   childName: 'Davi',
-  ageGroup: '3-4',
+  ageGroup: '3-5',
   themes: ['stars', 'music'],
   languageStyle: 'rhymes',
   readingGoal: 'bedtime',

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Prisma, type Passage, type PrismaClient, type SubscriptionTier } from '@prisma/client';
 import {
   AdaptationNotFound,
@@ -17,14 +16,22 @@ import type { ChildProfileRepository } from '@/lib/repositories/interfaces/child
 import type { UsageRepository } from '@/lib/repositories/interfaces/usage.repository';
 import type { UserStoryRepository } from '@/lib/repositories/interfaces/user-story.repository';
 import { AudioService } from '@/lib/services/audio.service';
-import { BibleTextService } from '@/lib/services/bible-text.service';
 import { currentUsageMonth, PlanLimitsService } from '@/lib/services/plan-limits.service';
-import { getSelectionFromPassageId } from '@/lib/stories/bible-passages';
+import {
+  buildAdaptationCacheKey,
+  StoryCacheService,
+} from '@/lib/services/story-cache.service';
+import { getBookMeta } from '@/lib/stories/bible-metadata';
+import {
+  formatPassageReference,
+  getPassageById,
+  getSelectionFromPassageId,
+} from '@/lib/stories/bible-passages';
+import { resolveBibleVersionId } from '@/lib/stories/bible-versions';
 
 export type GenerateStoryResult = {
   adaptationId: string;
   userStoryId: string;
-  fromCache: boolean;
   title: string;
 };
 
@@ -36,9 +43,9 @@ export class StoryGenerationService {
     private readonly usage: UsageRepository,
     private readonly childProfiles: ChildProfileRepository,
     private readonly planLimits: PlanLimitsService,
-    private readonly bibleText: BibleTextService,
     private readonly llm: LlmProvider,
-    private readonly audio: Pick<AudioService, 'prepareAdaptationAudio'>
+    private readonly audio: Pick<AudioService, 'prepareAdaptationAudio'>,
+    private readonly storyCache: StoryCacheService
   ) {}
 
   async generateOrReuse(input: {
@@ -52,71 +59,70 @@ export class StoryGenerationService {
       throw new AdaptationNotFound(`Passagem inválida: ${payload.passageSlug}`);
     }
 
-    await this.planLimits.assertCanGenerate(
-      input.userId,
-      input.tier,
-      toPrismaContentType(payload.contentType)
-    );
-
-    const passage = await this.findOrCreatePassage(payload.passageSlug, {
-      reference: `${selection.bookId} ${selection.chapter}:${payload.verseFrom}–${payload.verseTo}`,
-      book: selection.bookId,
-      preview: `Passagem ${payload.passageSlug}`,
-      sourceText: { verses: [] },
-    });
-
+    const bibleVersionId = resolveBibleVersionId(payload.bibleVersionId);
     const ageTier = toPrismaAgeTier(payload.ageTier);
     const contentType = toPrismaContentType(payload.contentType);
 
-    const cached = await this.adaptations.findByCacheKey({
+    const bookMeta = getBookMeta(selection.bookId);
+    const passageEntity = getPassageById(payload.passageSlug);
+    const reference =
+      passageEntity && bookMeta
+        ? formatPassageReference(passageEntity, {
+            verseFrom: payload.verseFrom,
+            verseTo: payload.verseTo,
+          })
+        : `${bookMeta?.name ?? selection.bookId} ${selection.chapter}:${payload.verseFrom}–${payload.verseTo}`;
+
+    const passage = await this.findOrCreatePassage(payload.passageSlug, {
+      reference,
+      book: bookMeta?.name ?? selection.bookId,
+      preview: `Passagem ${reference}`,
+      sourceText: { reference } as Prisma.InputJsonValue,
+    });
+
+    const lookupKey = {
       passageId: passage.id,
-      bibleVersionId: payload.bibleVersionId,
+      bibleVersionId,
       verseFrom: payload.verseFrom,
       verseTo: payload.verseTo,
       ageTier,
       languageStyle: payload.languageStyle,
       contentType,
-    });
+    };
+    const cacheKey = buildAdaptationCacheKey(lookupKey);
 
-    if (cached) {
-      const userStory = await this.userStories.upsertFromAdaptation({
-        userId: input.userId,
-        childProfileId: payload.childProfileId,
-        adaptationId: cached.id,
-      });
-
-      if (payload.childProfileId) {
-        await this.childProfiles.update(payload.childProfileId, { hasCreatedStory: true });
-      }
-
-      await this.prepareAudio(cached.id);
-
-      return {
-        adaptationId: cached.id,
-        userStoryId: userStory.id,
-        fromCache: true,
-        title: cached.title,
-      };
-    }
-
-    const bible = await this.bibleText.getPassageText({
-      bibleVersionId: payload.bibleVersionId,
-      bookId: selection.bookId,
-      chapter: selection.chapter,
-      verseFrom: payload.verseFrom,
-      verseTo: payload.verseTo,
-    });
-
-    await this.persistPassageSourceText(
-      passage.id,
-      bible.verses,
-      payload.verseFrom,
-      payload.verseTo
+    const cachedViewsShown = await this.storyCache.countCachedViewsShown(
+      input.userId,
+      payload.childProfileId,
+      cacheKey
     );
 
+    if (this.storyCache.shouldTryCachedView(cachedViewsShown)) {
+      const cached = await this.storyCache.pickHighestScoredUnseenCachedAdaptation({
+        lookupKey,
+        cacheKey,
+        userId: input.userId,
+        childProfileId: payload.childProfileId,
+        excludeAdaptationIds: payload.currentAdaptationId
+          ? [payload.currentAdaptationId]
+          : undefined,
+      });
+
+      if (cached) {
+        return this.attachAdaptationToUser({
+          userId: input.userId,
+          childProfileId: payload.childProfileId,
+          adaptation: cached,
+          cacheKey,
+          source: 'cached',
+        });
+      }
+    }
+
+    await this.planLimits.assertCanGenerate(input.userId, input.tier, contentType);
+
     const generated = await this.llm.generateStory({
-      sourceText: bible.rawText,
-      reference: bible.reference,
+      reference,
       ageTier: payload.ageTier,
       languageStyle: payload.languageStyle,
       contentType: payload.contentType,
@@ -133,96 +139,45 @@ export class StoryGenerationService {
         : undefined
       : undefined;
 
-    const idempotencyKey =
-      payload.idempotencyKey ??
-      createHash('sha256')
-        .update(
-          [
-            input.userId,
-            payload.passageSlug,
-            payload.bibleVersionId,
-            payload.verseFrom,
-            payload.verseTo,
-            payload.ageTier,
-            payload.languageStyle,
-            payload.contentType,
-          ].join('|')
-        )
-        .digest('hex');
+    const nextVersion = await this.storyCache.getNextVersionNumber(lookupKey);
 
-    void idempotencyKey;
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Re-check cache inside transaction for double-click safety
-      const again = await tx.passageAdaptation.findFirst({
-        where: {
-          passageId: passage.id,
-          bibleVersionId: payload.bibleVersionId,
-          verseFrom: payload.verseFrom,
-          verseTo: payload.verseTo,
-          ageTier,
-          languageStyle: payload.languageStyle,
-          contentType,
+    const adaptation = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.passageAdaptation.create({
+        data: {
+          passageId: lookupKey.passageId,
+          bibleVersionId: lookupKey.bibleVersionId,
+          verseFrom: lookupKey.verseFrom,
+          verseTo: lookupKey.verseTo,
+          ageTier: lookupKey.ageTier,
+          languageStyle: lookupKey.languageStyle,
+          contentType: lookupKey.contentType,
+          content: content.data as Prisma.InputJsonValue,
+          quiz: (quiz ?? undefined) as Prisma.InputJsonValue | undefined,
+          adaptationNote: generated.adaptationNote,
+          title: generated.title,
+          status: 'draft',
+          version: nextVersion,
+          createdByUserId: input.userId,
         },
       });
 
-      const adaptation =
-        again ??
-        (await tx.passageAdaptation.create({
-          data: {
-            passageId: passage.id,
-            bibleVersionId: payload.bibleVersionId,
-            verseFrom: payload.verseFrom,
-            verseTo: payload.verseTo,
-            ageTier,
-            languageStyle: payload.languageStyle,
-            contentType,
-            content: content.data,
-            quiz: quiz ?? undefined,
-            adaptationNote: generated.adaptationNote,
-            title: generated.title,
-            status: 'draft',
-            version: 1,
-          },
-        }));
-
-      const existingStory = await tx.userStory.findFirst({
+      const month = currentUsageMonth();
+      await tx.usageEvent.upsert({
         where: {
-          userId: input.userId,
-          adaptationId: adaptation.id,
-          childProfileId: payload.childProfileId ?? undefined,
-        },
-      });
-
-      const userStory =
-        existingStory ??
-        (await tx.userStory.create({
-          data: {
-            userId: input.userId,
-            childProfileId: payload.childProfileId,
-            adaptationId: adaptation.id,
-          },
-        }));
-
-      if (!again) {
-        const month = currentUsageMonth();
-        await tx.usageEvent.upsert({
-          where: {
-            userId_contentType_month: {
-              userId: input.userId,
-              contentType,
-              month,
-            },
-          },
-          update: { count: { increment: 1 } },
-          create: {
+          userId_contentType_month: {
             userId: input.userId,
             contentType,
             month,
-            count: 1,
           },
-        });
-      }
+        },
+        update: { count: { increment: 1 } },
+        create: {
+          userId: input.userId,
+          contentType,
+          month,
+          count: 1,
+        },
+      });
 
       if (payload.childProfileId) {
         await tx.childProfile.update({
@@ -231,28 +186,67 @@ export class StoryGenerationService {
         });
       }
 
-      const totalPages = content.data.pages.length;
-      await tx.readingProgress.upsert({
+      return created;
+    });
+
+    const result = await this.attachAdaptationToUser({
+      userId: input.userId,
+      childProfileId: payload.childProfileId,
+      adaptation,
+      cacheKey,
+      source: 'generated',
+      totalPages: content.data.pages.length,
+    });
+
+    await this.prepareAudio(adaptation.id);
+    return result;
+  }
+
+  private async attachAdaptationToUser(params: {
+    userId: string;
+    childProfileId?: string;
+    adaptation: { id: string; title: string };
+    cacheKey: string;
+    source: 'cached' | 'generated';
+    totalPages?: number;
+  }): Promise<GenerateStoryResult> {
+    const userStory = await this.userStories.upsertFromAdaptation({
+      userId: params.userId,
+      childProfileId: params.childProfileId,
+      adaptationId: params.adaptation.id,
+    });
+
+    if (params.childProfileId) {
+      await this.childProfiles.update(params.childProfileId, { hasCreatedStory: true });
+    }
+
+    if (params.totalPages) {
+      await this.prisma.readingProgress.upsert({
         where: { userStoryId: userStory.id },
-        update: { totalPages },
+        update: { totalPages: params.totalPages },
         create: {
           userStoryId: userStory.id,
           currentPage: 1,
-          totalPages,
+          totalPages: params.totalPages,
         },
       });
+    }
 
-      return {
-        adaptationId: adaptation.id,
-        userStoryId: userStory.id,
-        fromCache: Boolean(again),
-        title: adaptation.title,
-      };
+    await this.storyCache.recordView({
+      userId: params.userId,
+      childProfileId: params.childProfileId,
+      adaptationId: params.adaptation.id,
+      cacheKey: params.cacheKey,
+      source: params.source,
     });
 
-    await this.prepareAudio(result.adaptationId);
+    await this.prepareAudio(params.adaptation.id);
 
-    return result;
+    return {
+      adaptationId: params.adaptation.id,
+      userStoryId: userStory.id,
+      title: params.adaptation.title,
+    };
   }
 
   private async prepareAudio(adaptationId: string) {
@@ -263,41 +257,9 @@ export class StoryGenerationService {
     }
   }
 
-  /**
-   * Avoids P2002 when two requests try to create the same passage slug at once
-   * (e.g. React Strict Mode double-mount or rapid double-click).
-   */
-  private async persistPassageSourceText(
-    passageId: string,
-    verses: Array<{ number: number; text: string }>,
-    verseFrom: number,
-    verseTo: number
-  ) {
-    const verseTexts = Array.from({ length: verseTo - verseFrom + 1 }, (_, index) => {
-      const number = verseFrom + index;
-      return verses.find((verse) => verse.number === number)?.text?.trim() ?? '';
-    }).filter((text) => text.length > 0);
-
-    if (verseTexts.length === 0) return;
-
-    const existing = await this.prisma.passage.findUnique({
-      where: { id: passageId },
-      select: { sourceText: true },
-    });
-    const stored = existing?.sourceText as { verses?: string[] } | null | undefined;
-    const hasStoredVerses = (stored?.verses?.length ?? 0) > 0;
-
-    if (hasStoredVerses) return;
-
-    await this.prisma.passage.update({
-      where: { id: passageId },
-      data: { sourceText: { verses: verseTexts } },
-    });
-  }
-
   private async findOrCreatePassage(
     slug: string,
-    data: Pick<Passage, 'reference' | 'book' | 'preview'> & { sourceText: Passage['sourceText'] }
+    data: Pick<Passage, 'reference' | 'book' | 'preview'> & { sourceText: Prisma.InputJsonValue }
   ): Promise<Passage> {
     const existing = await this.prisma.passage.findUnique({ where: { slug } });
     if (existing) return existing;

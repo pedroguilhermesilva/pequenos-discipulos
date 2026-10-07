@@ -1,11 +1,19 @@
-import { AdaptationNotFound, DomainError } from '@/lib/domain/errors';
+import {
+  AdaptationNotFound,
+  DomainError,
+  UnauthorizedError,
+} from '@/lib/domain/errors';
 import type { AdaptationRepository } from '@/lib/repositories/interfaces/adaptation.repository';
+import type { UserStoryRepository } from '@/lib/repositories/interfaces/user-story.repository';
 import type { VoteRepository } from '@/lib/repositories/interfaces/vote.repository';
+
+const VOTABLE_STATUSES = new Set(['community', 'as_default', 'family_approved']);
 
 export class VoteService {
   constructor(
     private readonly votes: VoteRepository,
-    private readonly adaptations: AdaptationRepository
+    private readonly adaptations: AdaptationRepository,
+    private readonly userStories: UserStoryRepository
   ) {}
 
   /**
@@ -19,6 +27,14 @@ export class VoteService {
       throw new DomainError('VALIDATION_ERROR', 'Voto inválido.');
     }
 
+    const isOwner =
+      adaptation.createdByUserId === userId ||
+      (await this.userStories.findByUserAndAdaptation(userId, adaptationId)) !== null;
+
+    if (!isOwner && !VOTABLE_STATUSES.has(adaptation.status)) {
+      throw new UnauthorizedError('Esta adaptação ainda não está disponível para votação.');
+    }
+
     await this.votes.upsert(userId, adaptationId, value);
     const { voteCount, voteScore } = await this.votes.aggregate(adaptationId);
     const updated = await this.adaptations.updateVotes(adaptationId, voteScore, voteCount);
@@ -30,15 +46,13 @@ export class VoteService {
     return { voteCount, voteScore };
   }
 
-  async approveWithFamily(adaptationId: string) {
-    const adaptation = await this.adaptations.findById(adaptationId);
-    if (!adaptation) throw new AdaptationNotFound();
+  async approveWithFamily(userId: string, adaptationId: string) {
+    await this.assertUserOwnsAdaptation(userId, adaptationId);
     return this.adaptations.updateStatus(adaptationId, 'family_approved');
   }
 
-  async shareWithCommunity(adaptationId: string) {
-    const adaptation = await this.adaptations.findById(adaptationId);
-    if (!adaptation) throw new AdaptationNotFound();
+  async shareWithCommunity(userId: string, adaptationId: string) {
+    await this.assertUserOwnsAdaptation(userId, adaptationId);
     return this.adaptations.updateStatus(adaptationId, 'community');
   }
 
@@ -53,5 +67,17 @@ export class VoteService {
       verseFrom: adaptation.verseFrom,
       verseTo: adaptation.verseTo,
     });
+  }
+
+  private async assertUserOwnsAdaptation(userId: string, adaptationId: string) {
+    const adaptation = await this.adaptations.findById(adaptationId);
+    if (!adaptation) throw new AdaptationNotFound();
+
+    if (adaptation.createdByUserId === userId) return adaptation;
+
+    const userStory = await this.userStories.findByUserAndAdaptation(userId, adaptationId);
+    if (userStory) return adaptation;
+
+    throw new UnauthorizedError('Esta adaptação não pertence à sua família.');
   }
 }

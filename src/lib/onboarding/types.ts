@@ -1,4 +1,5 @@
-export type AgeGroupId = '1-2' | '3-4' | '5+';
+/** Aligned with adaptation tiers and Prisma AgeTier mapping. */
+export type AgeGroupId = '3-5' | '6-8' | '9-11';
 export type ThemeId = 'animals' | 'stars' | 'heroes' | 'nature' | 'music' | 'adventure';
 export type LanguageStyleId = 'simple' | 'rhymes' | 'adventure';
 export type ReadingGoalId = 'bedtime' | 'prayer' | 'learning' | 'fun';
@@ -13,6 +14,6 @@ export interface UserPreferences {
   readingGoal: ReadingGoalId;
   preferredFormat: PreferredFormatId;
   usageFrequency: UsageFrequencyId;
-  /** YouVersion Bible version id */
+  /** Local Bible version id (Almeida 1911). */
   bibleVersionId: string;
 }

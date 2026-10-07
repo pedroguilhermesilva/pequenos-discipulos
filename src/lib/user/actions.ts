@@ -55,7 +55,7 @@ export async function saveUserProfile(data: {
     const user = await requireCurrentUser();
     await container.prisma.user.update({
       where: { id: user.id },
-      data: { fullName },
+      data: { fullName, name: fullName },
     });
     revalidatePath('/configuracoes');
     return { success: true };

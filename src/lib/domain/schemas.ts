@@ -121,7 +121,7 @@ export const storyQuizSchema = z.object({
 
 export const userPreferencesSchema = z.object({
   childName: z.string().min(1),
-  ageGroup: z.enum(['1-2', '3-4', '5+']),
+  ageGroup: ageTierSchema,
   themes: z.array(
     z.enum(['animals', 'stars', 'heroes', 'nature', 'music', 'adventure'])
   ),
@@ -142,8 +142,14 @@ export const generateStoryInputSchema = z.object({
   contentType: contentTypeSchema,
   childProfileId: z.string().optional(),
   idempotencyKey: z.string().optional(),
+  mode: z.enum(['initial', 'regenerate']).optional(),
+  currentAdaptationId: z.string().optional(),
+}).refine((input) => input.verseFrom <= input.verseTo, {
+  message: '"De" deve ser menor ou igual a "Até"',
+  path: ['verseFrom'],
 });
 
+export type StoryTextPart = z.infer<typeof storyTextPartSchema>;
 export type AdaptationContent = z.infer<typeof adaptationContentSchema>;
 export type NarrationAlignment = z.infer<typeof narrationAlignmentSchema>;
 export type StoryQuizData = z.infer<typeof storyQuizSchema>;

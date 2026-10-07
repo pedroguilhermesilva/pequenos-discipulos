@@ -16,8 +16,6 @@ import { loadPreferencesFromStorage } from '@/lib/onboarding/storage';
 import type { UserPreferences } from '@/lib/onboarding/types';
 import { getAgeTierFromPreferences, getAgeTierLabel } from '@/lib/stories/age-tiers';
 import { getStoryQuiz } from '@/lib/stories/story-quiz';
-import { getBiblePassageTextAction } from '@/lib/stories/bible-text-actions';
-import { isStubVerseText } from '@/lib/providers/stubs/stub-bible-text.provider';
 import { getAdaptationContentAction } from '@/lib/stories/library-actions';
 import type { AdaptationContent, StoryQuizData } from '@/lib/domain/schemas';
 import { cn } from '@/lib/cn';
@@ -40,6 +38,7 @@ interface StoryViewerContentProps {
   userStoryId?: string;
   initialSourceVerses?: BibleVerseLine[];
   onBack: () => void;
+  onRegenerate?: () => void;
 }
 
 export function StoryViewerContent({
@@ -51,6 +50,7 @@ export function StoryViewerContent({
   userStoryId: _userStoryId,
   initialSourceVerses,
   onBack,
+  onRegenerate,
 }: StoryViewerContentProps) {
   const [passageDialogOpen, setPassageDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(story.currentPage ?? 1);
@@ -74,11 +74,7 @@ export function StoryViewerContent({
     }
     return [];
   });
-  const [sourceLoading, setSourceLoading] = useState(
-    () =>
-      !initialSourceVerses?.length &&
-      passage.verses.length === 0
-  );
+  const [sourceLoading] = useState(false);
   const [adaptationContent, setAdaptationContent] = useState<AdaptationContent | null>(null);
   const [adaptationQuiz, setAdaptationQuiz] = useState<StoryQuizData | null>(null);
   const [adaptationNote, setAdaptationNote] = useState<string | null>(null);
@@ -91,7 +87,7 @@ export function StoryViewerContent({
       .slice(0, 2)
       .map((verse) => verse.text)
       .join(' ') ||
-    (sourceLoading ? 'Carregando texto bíblico...' : 'Abra para ver o texto bíblico.');
+    `Referência bíblica: ${passageReference}. O texto integral não é exibido aqui — a história adaptada segue esta passagem.`;
   const ageTier = useMemo(() => getAgeTierFromPreferences(preferences), [preferences]);
   const fallbackQuiz = useMemo(() => getStoryQuiz(story.id, ageTier), [story.id, ageTier]);
   const quiz = adaptationQuiz ?? fallbackQuiz;
@@ -105,53 +101,13 @@ export function StoryViewerContent({
   useEffect(() => {
     if (initialSourceVerses && initialSourceVerses.length > 0) {
       setSourceVerses(initialSourceVerses);
-      setSourceLoading(false);
       return;
     }
 
     if (passage.verses.length > 0) {
       setSourceVerses(toBibleVerseLines(passage.verses, passageRange.verseFrom));
-      setSourceLoading(false);
-      return;
     }
-
-    let cancelled = false;
-
-    async function loadSourceText() {
-      setSourceLoading(true);
-      try {
-        const result = await getBiblePassageTextAction({
-          passageSlug: passage.id,
-          verseFrom: passageRange.verseFrom,
-          verseTo: passageRange.verseTo,
-          bibleVersionId: preferences.bibleVersionId,
-        });
-
-        if (cancelled) return;
-
-        if (result.ok && result.data) {
-          const verses = result.data.verses.filter((verse) => !isStubVerseText(verse.text));
-          if (verses.length > 0) {
-            setSourceVerses(verses);
-          }
-        }
-      } finally {
-        if (!cancelled) setSourceLoading(false);
-      }
-    }
-
-    void loadSourceText();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    initialSourceVerses,
-    passage.id,
-    passage.verses,
-    passageRange.verseFrom,
-    passageRange.verseTo,
-    preferences.bibleVersionId,
-  ]);
+  }, [initialSourceVerses, passage.verses, passageRange.verseFrom]);
 
   useEffect(() => {
     if (!adaptationId) {
@@ -290,7 +246,6 @@ export function StoryViewerContent({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           adaptationId,
-          parentUnlocked: true,
           action,
           value: 1,
         }),
@@ -460,6 +415,16 @@ export function StoryViewerContent({
               </button>
 
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {onRegenerate && adaptationId && (
+                  <button
+                    type="button"
+                    onClick={onRegenerate}
+                    className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-vida bg-vida/10 hover:bg-vida/15 border border-vida/25 px-3 py-2.5 rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-vida"
+                  >
+                    <span className="material-symbols-outlined text-base">autorenew</span>
+                    Gerar novamente
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => openParentGate('parents')}

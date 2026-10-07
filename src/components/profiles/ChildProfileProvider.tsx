@@ -130,15 +130,20 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
 
   const createProfile = useCallback(
     (preferences: UserPreferences) => {
-      const profile = addProfile(preferences);
-      void createChildProfileAction({
-        id: profile.id,
-        name: profile.name,
-        avatarColor: profile.avatarColor,
-        preferences: profile.preferences,
-      }).then(() => setActiveChildProfile(profile.id));
-      void refresh();
-      return profile;
+      const localProfile = addProfile(preferences);
+      void (async () => {
+        const result = await createChildProfileAction({
+          id: localProfile.id,
+          name: localProfile.name,
+          avatarColor: localProfile.avatarColor,
+          preferences: localProfile.preferences,
+        });
+        if (result.ok) {
+          await setActiveChildProfile(result.data.id);
+        }
+        await refresh();
+      })();
+      return localProfile;
     },
     [refresh]
   );

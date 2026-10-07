@@ -7,6 +7,7 @@ import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
 import { parsePreferences } from '@/lib/onboarding/storage';
 import { buildUsageLimits } from '@/lib/user/usage-limits';
 import type { UserSettings } from '@/lib/user/types';
+import { resolveUserDisplayName } from '@/lib/user/display-name';
 
 export async function getUserSettings(): Promise<UserSettings> {
   const user = await requireCurrentUser();
@@ -28,7 +29,7 @@ export async function getUserSettings(): Promise<UserSettings> {
     account: {
       id: user.id,
       email: user.email,
-      fullName: user.fullName,
+      fullName: resolveUserDisplayName(user),
       avatarUrl: null,
     },
     preferences,

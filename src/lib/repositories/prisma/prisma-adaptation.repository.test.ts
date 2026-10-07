@@ -10,7 +10,7 @@ describe('PrismaAdaptationRepository', () => {
 
     const found = await repo.findByCacheKey({
       passageId: passage!.id,
-      bibleVersionId: '211',
+      bibleVersionId: 'alm1911',
       verseFrom: 1,
       verseTo: 3,
       ageTier: 'TIER_3_5',

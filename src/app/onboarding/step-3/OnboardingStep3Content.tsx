@@ -10,11 +10,8 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { preferredFormats, usageFrequencies } from '@/lib/onboarding/constants';
 import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
 import { mergePreferences } from '@/lib/onboarding/storage';
-import {
-  addProfile,
-  clearOnboardingDraft,
-  loadOnboardingDraft,
-} from '@/lib/profiles/storage';
+import { createChildProfileAction, setActiveChildProfile } from '@/lib/profiles/actions';
+import { clearOnboardingDraft, loadOnboardingDraft } from '@/lib/profiles/storage';
 import { isNewProfileMode } from '@/lib/onboarding/routing';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -44,7 +41,16 @@ export function OnboardingStep3Content() {
       base
     );
 
-    addProfile(preferences);
+    const result = await createChildProfileAction({
+      name: preferences.childName,
+      avatarColor: 'laranja',
+      preferences,
+    });
+
+    if (result.ok) {
+      await setActiveChildProfile(result.data.id);
+    }
+
     clearOnboardingDraft();
     router.push('/home');
   };

@@ -1,31 +1,36 @@
+import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { A_ESTRELA_DE_MATEUS_PAGES } from '../src/lib/stories/story-viewer-pages';
 import { getStoryQuiz } from '../src/lib/stories/story-quiz';
 import { DEFAULT_PREFERENCES } from '../src/lib/onboarding/defaults';
+import { DEFAULT_BIBLE_VERSION_ID } from '@/lib/stories/bible-versions';
 
 const prisma = new PrismaClient();
 
 const DEV_USER_ID = process.env.DEV_USER_ID ?? 'dev-user-1';
-import { DEFAULT_BIBLE_VERSION_ID } from '@/lib/stories/bible-versions';
-
-const DEFAULT_BIBLE_VERSION = DEFAULT_BIBLE_VERSION_ID;
+const DEV_PASSWORD = 'devpassword123';
 
 async function main() {
+  const passwordHash = await bcrypt.hash(DEV_PASSWORD, 12);
   const preferences = {
     ...DEFAULT_PREFERENCES,
-    bibleVersionId: DEFAULT_BIBLE_VERSION,
+    bibleVersionId: DEFAULT_BIBLE_VERSION_ID,
   };
 
   const user = await prisma.user.upsert({
     where: { id: DEV_USER_ID },
     update: {
       email: 'dev@pequenos-discipulos.local',
+      name: 'Conta de desenvolvimento',
       fullName: 'Conta de desenvolvimento',
+      passwordHash,
     },
     create: {
       id: DEV_USER_ID,
       email: 'dev@pequenos-discipulos.local',
+      name: 'Conta de desenvolvimento',
       fullName: 'Conta de desenvolvimento',
+      passwordHash,
       subscriptionTier: 'free',
     },
   });
@@ -81,7 +86,7 @@ async function main() {
       where: {
         passageId_bibleVersionId_verseFrom_verseTo_ageTier_languageStyle_contentType_version: {
           passageId: passage.id,
-          bibleVersionId: DEFAULT_BIBLE_VERSION,
+          bibleVersionId: DEFAULT_BIBLE_VERSION_ID,
           verseFrom: 1,
           verseTo: 3,
           ageTier,
@@ -95,10 +100,11 @@ async function main() {
         quiz,
         status: 'community',
         title: 'A Estrela de Mateus',
+        createdByUserId: user.id,
       },
       create: {
         passageId: passage.id,
-        bibleVersionId: DEFAULT_BIBLE_VERSION,
+        bibleVersionId: DEFAULT_BIBLE_VERSION_ID,
         verseFrom: 1,
         verseTo: 3,
         ageTier,
@@ -113,6 +119,7 @@ async function main() {
         title: 'A Estrela de Mateus',
         voteScore: 4.9,
         voteCount: 12,
+        createdByUserId: user.id,
       },
     });
   }
@@ -150,7 +157,12 @@ async function main() {
     },
   });
 
-  console.log('Seed complete:', { userId: user.id, childId: child.id, adaptationId: adaptation.id });
+  console.log('Seed complete:', {
+    userId: user.id,
+    childId: child.id,
+    adaptationId: adaptation.id,
+    devLogin: 'dev@pequenos-discipulos.local / devpassword123',
+  });
 }
 
 main()

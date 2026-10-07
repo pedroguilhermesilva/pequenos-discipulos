@@ -7,6 +7,8 @@ interface StoryUrlOptions {
   contentType?: ContentType;
   /** Skip generation animation for stories already in progress */
   ready?: boolean;
+  bookId?: string;
+  chapter?: number;
   verseFrom?: number;
   verseTo?: number;
 }
@@ -22,6 +24,12 @@ export function buildStoryUrl(storyId: string, options: StoryUrlOptions = {}): s
   }
   if (options.ready) {
     params.set('pronto', '1');
+  }
+  if (options.bookId) {
+    params.set('livro', options.bookId);
+  }
+  if (options.chapter !== undefined) {
+    params.set('capitulo', String(options.chapter));
   }
   if (options.verseFrom !== undefined) {
     params.set('de', String(options.verseFrom));
@@ -44,16 +52,21 @@ export function parseStorySearchParams(searchParams: URLSearchParams): {
   passageId: string | null;
   contentType: ContentType | null;
   ready: boolean;
+  bookId: string | null;
+  chapter: number | null;
   verseFrom: number | null;
   verseTo: number | null;
 } {
   const tipo = searchParams.get('tipo');
   const validTypes: ContentType[] = ['text', 'audio', 'video'];
+  const livro = searchParams.get('livro')?.trim() || null;
 
   return {
     passageId: searchParams.get('passagem'),
     contentType: tipo && validTypes.includes(tipo as ContentType) ? (tipo as ContentType) : null,
     ready: searchParams.get('pronto') === '1',
+    bookId: livro,
+    chapter: parseVerseParam(searchParams.get('capitulo')),
     verseFrom: parseVerseParam(searchParams.get('de')),
     verseTo: parseVerseParam(searchParams.get('ate')),
   };

@@ -24,9 +24,10 @@ export default defineConfig({
     env: {
       ...process.env,
       DATABASE_URL: databaseUrl,
-      DEV_USER_ID: process.env.DEV_USER_ID ?? 'dev-user-1',
+      AUTH_SECRET: process.env.AUTH_SECRET ?? 'playwright-test-auth-secret',
+      AUTH_URL: 'http://127.0.0.1:3000',
+      DIRECT_URL: databaseUrl,
       LLM_USE_STUB: 'true',
-      YVP_USE_STUB: 'true',
       TTS_USE_STUB: 'true',
     },
   },

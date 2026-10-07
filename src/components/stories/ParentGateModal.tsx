@@ -20,6 +20,7 @@ export function ParentGateModal({ open, onClose, onSuccess }: ParentGateModalPro
   const [problem, setProblem] = useState(generateMathProblem);
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -49,14 +50,37 @@ export function ParentGateModal({ open, onClose, onSuccess }: ParentGateModalPro
 
   if (!open || !mounted) return null;
 
-  const handleVerify = () => {
-    if (Number(answer) === problem.answer) {
+  const handleVerify = async () => {
+    setVerifying(true);
+    setError(false);
+
+    try {
+      const response = await fetch('/api/parent-gate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          a: problem.a,
+          b: problem.b,
+          answer: Number(answer),
+        }),
+      });
+      const json = (await response.json()) as { ok: boolean };
+
+      if (!json.ok) {
+        setError(true);
+        setProblem(generateMathProblem());
+        setAnswer('');
+        return;
+      }
+
       onSuccess();
       onClose();
-    } else {
+    } catch {
       setError(true);
       setProblem(generateMathProblem());
       setAnswer('');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -113,8 +137,9 @@ export function ParentGateModal({ open, onClose, onSuccess }: ParentGateModalPro
               setAnswer(e.target.value);
               setError(false);
             }}
-            onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+            onKeyDown={(e) => e.key === 'Enter' && void handleVerify()}
             placeholder="Sua resposta"
+            disabled={verifying}
             className={cn(
               'w-full text-center py-2 px-3 bg-white border rounded-xl font-bold text-tinta focus:outline-none focus:ring-2 focus:ring-vida',
               error ? 'border-red-400' : 'border-borda'
@@ -130,16 +155,18 @@ export function ParentGateModal({ open, onClose, onSuccess }: ParentGateModalPro
           <button
             type="button"
             onClick={onClose}
+            disabled={verifying}
             className="w-1/2 py-2.5 rounded-xl border border-borda font-bold text-xs text-oliva hover:bg-pergaminho-escuro transition-colors"
           >
             Cancelar
           </button>
           <button
             type="button"
-            onClick={handleVerify}
-            className="w-1/2 py-2.5 rounded-xl bg-gradient-to-r from-amber to-laranja hover:from-amber/90 hover:to-laranja/90 font-bold text-xs text-white transition-all"
+            onClick={() => void handleVerify()}
+            disabled={verifying}
+            className="w-1/2 py-2.5 rounded-xl bg-gradient-to-r from-amber to-laranja hover:from-amber/90 hover:to-laranja/90 font-bold text-xs text-white transition-all disabled:opacity-60"
           >
-            Confirmar
+            {verifying ? 'Validando...' : 'Confirmar'}
           </button>
         </div>
       </div>

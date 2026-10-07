@@ -56,6 +56,13 @@ export class LlmValidationError extends DomainError {
   }
 }
 
+export class UnauthorizedError extends DomainError {
+  constructor(message = 'Não autorizado.') {
+    super('UNAUTHORIZED', message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: DomainErrorCode; message: string };
