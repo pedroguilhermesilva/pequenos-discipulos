@@ -68,6 +68,8 @@ Confirme que o **faturamento** está ativo no projeto.
 - **Restrições de API:** permitir Cloud Text-to-Speech API (+ Speech-to-Text se `NARRATION_ALIGNER=google`)
 - **Restrições de aplicativo:** IPs/serviços conforme política (Vercel = sem restrição de IP, ou usar service account).
 
+> **Atenção (Gemini-TTS):** a documentação Google exige a permissão `aiplatform.endpoints.predict` (papel *Vertex AI User*) para a identidade autenticada. Uma API key não tem identidade IAM; se o Google responder 403 com `aiplatform.endpoints.predict`, use `GOOGLE_TTS_CREDENTIALS_JSON` de uma conta de serviço com esse papel. Com API key o app **não** envia `x-goog-user-project` (o projeto da chave já é o de faturação). O motivo exato do erro Google fica no log do servidor (`[GeminiFlashTts] Google respondeu …`).
+
 Alternativa mais segura: **service account** com `GOOGLE_TTS_CREDENTIALS_JSON` (`client_email` + `private_key` + `project_id`).
 
 ### 3. Variáveis na Vercel

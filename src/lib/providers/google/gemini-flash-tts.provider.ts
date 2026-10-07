@@ -1,6 +1,10 @@
 import { DomainError } from '@/lib/domain/errors';
 import { resolveGoogleTtsAuthorization } from '@/lib/providers/google/google-tts-auth';
-import { parseGoogleTtsError } from '@/lib/providers/google/parse-google-tts-error';
+import {
+  describeGoogleApiError,
+  logGoogleApiError,
+  parseGoogleTtsError,
+} from '@/lib/providers/google/parse-google-tts-error';
 import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
 import type { NarrationAligner } from '@/lib/providers/interfaces/narration-aligner';
 import type {
@@ -99,6 +103,11 @@ export class GeminiFlashTtsProvider implements TtsProvider {
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
+      logGoogleApiError(
+        'GeminiFlashTts',
+        describeGoogleApiError(response.status, errorBody),
+        { model: this.config.modelName, voice: this.config.voiceName, auth: this.config.apiKey ? 'api-key' : 'service-account' }
+      );
       throw new DomainError(
         'TTS_NOT_CONFIGURED',
         parseGoogleTtsError(response.status, errorBody)

@@ -156,7 +156,7 @@ describe('GeminiFlashTtsProvider', () => {
     expect(headers['x-goog-user-project']).toBeUndefined();
   });
 
-  it('sends x-goog-user-project header when project ID is known', async () => {
+  it('does not send x-goog-user-project with API key even when project ID is known', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ audioContent: Buffer.from('audio').toString('base64') }),
@@ -178,6 +178,43 @@ describe('GeminiFlashTtsProvider', () => {
 
     const [, ttsInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = ttsInit.headers as Record<string, string>;
-    expect(headers['x-goog-user-project']).toBe('demo-project');
+    // Com API key o projeto da chave é o projeto de quota; o header exigiria uma identidade IAM.
+    expect(headers['x-goog-user-project']).toBeUndefined();
+  });
+
+  it('logs Google status/reason/message server-side (no key) and throws a specific message', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () =>
+        JSON.stringify({
+          error: {
+            code: 403,
+            status: 'PERMISSION_DENIED',
+            message: 'Cloud Text-to-Speech API has not been used in project 123 before or it is disabled.',
+            details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'SERVICE_DISABLED' }],
+          },
+        }),
+    });
+
+    const provider = new GeminiFlashTtsProvider(
+      {
+        apiKey: 'secret-key',
+        modelName: 'gemini-2.5-flash-tts',
+        voiceName: 'Leda',
+        languageCode: 'pt-BR',
+        stylePrompt: 'x',
+      },
+      createAlignerStub({ provider: 'stub', strategy: 'none', alignment: null })
+    );
+
+    await expect(provider.generateSpeech({ text: 'Olá', blockKey: 'b' })).rejects.toThrow(/SERVICE_DISABLED/);
+    const logged = errorSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+    expect(logged).toContain('403');
+    expect(logged).toContain('SERVICE_DISABLED');
+    expect(logged).toContain('gemini-2.5-flash-tts');
+    expect(logged).not.toContain('secret-key');
+    errorSpy.mockRestore();
   });
 });

@@ -73,8 +73,11 @@ export async function resolveGoogleTtsAuthorization(
   const projectHeader: Record<string, string> = billingProject ? { 'x-goog-user-project': billingProject } : {};
 
   if (apiKey) {
+    // Com API key, o projeto da própria chave é o projeto de quota/faturação.
+    // x-goog-user-project exige uma identidade IAM com serviceusage.services.use,
+    // que uma API key não tem — enviá-lo pode causar 403 (USER_PROJECT_DENIED).
     return {
-      headers: { 'Content-Type': 'application/json', ...projectHeader },
+      headers: { 'Content-Type': 'application/json' },
       urlSuffix: `?key=${encodeURIComponent(apiKey)}`,
     };
   }

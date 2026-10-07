@@ -100,10 +100,9 @@ export class GoogleNarrationAligner implements NarrationAligner {
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          ...auth.headers,
-          'x-goog-user-project': projectId,
-        },
+        headers: this.config.apiKey
+          ? auth.headers
+          : { ...auth.headers, 'x-goog-user-project': projectId },
         body: JSON.stringify({
           config: {
             autoDecodingConfig: {},
