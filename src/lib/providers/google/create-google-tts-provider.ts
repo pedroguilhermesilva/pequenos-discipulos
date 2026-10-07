@@ -12,6 +12,8 @@ import {
 import { extractGoogleProjectId } from '@/lib/providers/google/google-tts-auth';
 import { GeminiFlashTtsProvider } from '@/lib/providers/google/gemini-flash-tts.provider';
 import { GoogleTtsProvider } from '@/lib/providers/google/google-tts.provider';
+import type { NarrationAligner } from '@/lib/providers/interfaces/narration-aligner';
+import { createNarrationAligner } from '@/lib/providers/narration-aligner/create-narration-aligner';
 import type { TtsProvider } from '@/lib/providers/interfaces/tts.provider';
 
 export type GoogleTtsRuntimeConfig = {
@@ -62,7 +64,11 @@ export function resolveGoogleTtsRuntimeConfig(env: NodeJS.ProcessEnv = process.e
   };
 }
 
-export function createGoogleTtsProvider(config: GoogleTtsRuntimeConfig): TtsProvider {
+export function createGoogleTtsProvider(
+  config: GoogleTtsRuntimeConfig,
+  env: NodeJS.ProcessEnv = process.env,
+  narrationAligner?: NarrationAligner
+): TtsProvider {
   if (config.provider === 'neural2') {
     return new GoogleTtsProvider({
       apiKey: config.apiKey,
@@ -78,13 +84,25 @@ export function createGoogleTtsProvider(config: GoogleTtsRuntimeConfig): TtsProv
     );
   }
 
-  return new GeminiFlashTtsProvider({
-    apiKey: config.apiKey,
-    credentialsJson: config.credentialsJson,
-    projectId: config.projectId,
-    modelName: config.geminiModel,
-    voiceName: config.geminiVoice,
-    languageCode: config.languageCode,
-    stylePrompt: config.stylePrompt,
-  });
+  const aligner =
+    narrationAligner ??
+    createNarrationAligner(env, {
+      apiKey: config.apiKey,
+      credentialsJson: config.credentialsJson,
+      projectId: config.projectId,
+      languageCode: config.languageCode,
+    });
+
+  return new GeminiFlashTtsProvider(
+    {
+      apiKey: config.apiKey,
+      credentialsJson: config.credentialsJson,
+      projectId: config.projectId,
+      modelName: config.geminiModel,
+      voiceName: config.geminiVoice,
+      languageCode: config.languageCode,
+      stylePrompt: config.stylePrompt,
+    },
+    aligner
+  );
 }

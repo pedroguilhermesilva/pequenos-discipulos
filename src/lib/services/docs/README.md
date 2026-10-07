@@ -31,7 +31,7 @@ Seleção de adaptações já existentes por `voteScore`, excluindo as do própr
 
 Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
 
-- **Narração da história:** uma síntese TTS para o texto completo (`story-narration@<suffix>` no cache). **Gemini Flash TTS** (default): Cloud TTS v1 + alinhamento pós-síntese via Speech-to-Text v2. **Neural2** (alternativa): timepoints SSML `<mark>` v1beta1. Slices por página em `narration-alignment.ts`. Campo `storyNarrationVoice` guarda o suffix completo (modelo/voz/estilo) e invalida cache ao mudar config.
+- **Narração da história:** uma síntese TTS para o texto completo (`story-narration@<suffix>` no cache). **Gemini Flash TTS** (default): Cloud TTS v1 + alinhamento pós-síntese via interface `NarrationAligner` (`NARRATION_ALIGNER=google|groq`). **Neural2** (alternativa): timepoints SSML `<mark>` v1beta1. Slices por página em `narration-alignment.ts`. Campo `storyNarrationVoice` guarda o suffix completo (modelo/voz/estilo) e invalida cache ao mudar config.
 - **Blocos interactivos:** TTS curto (`generateSpeech`) ou SFX ElevenLabs conforme `resolve-block-audio.ts`.
 - **LGPD:** o texto enviado ao TTS vem só do conteúdo da história — nunca o apelido da criança (`ChildProfile.name`).
 
@@ -39,7 +39,9 @@ Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
 
 | Provider | Env | Uso |
 |----------|-----|-----|
-| `GeminiFlashTtsProvider` | `GOOGLE_TTS_PROVIDER=gemini`, `GOOGLE_TTS_MODEL`, `GOOGLE_TTS_GEMINI_VOICE`, `GOOGLE_TTS_STYLE_PROMPT`, `GOOGLE_CLOUD_PROJECT_ID` | Narração expressiva + alinhamento STT |
+| `GeminiFlashTtsProvider` | `GOOGLE_TTS_PROVIDER=gemini`, `GOOGLE_TTS_MODEL`, `GOOGLE_TTS_GEMINI_VOICE`, `GOOGLE_TTS_STYLE_PROMPT`, `GOOGLE_CLOUD_PROJECT_ID` | Narração expressiva + `NarrationAligner` |
+| `GoogleNarrationAligner` | `NARRATION_ALIGNER=google` (default), mesma chave Google | Alinhamento via Speech-to-Text v2 |
+| `GroqWhisperNarrationAligner` | `NARRATION_ALIGNER=groq`, `GROQ_API_KEY` | Alinhamento via Whisper Large v3 Turbo |
 | `GoogleTtsProvider` | `GOOGLE_TTS_PROVIDER=neural2`, `GOOGLE_TTS_VOICE` (default `pt-BR-Neural2-C`) | Narração + timepoints SSML nativos |
 | `StubTtsProvider` | `TTS_USE_STUB=true` ou sem credenciais Google | Dev / CI |
 | `ElevenLabsSfxProvider` | `ELEVENLABS_API_KEY` | Efeitos sonoros (removido no #5) |
@@ -101,6 +103,7 @@ Votos e aprovação familiar — **sempre** atrás de parent gate validado no se
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth opcional |
 | `LLM_*` | Geração de histórias |
 | `GOOGLE_TTS_*` / `TTS_USE_STUB` | Narração TTS (Google) |
+| `NARRATION_ALIGNER` / `GROQ_API_KEY` | Alinhamento palavra a palavra pós-Gemini |
 | `ELEVENLABS_*` | SFX (ElevenLabs, até #5) |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limit partilhado (prod) |
 | `BLOB_READ_WRITE_TOKEN` | Áudio privado no Vercel Blob (prod/preview) |

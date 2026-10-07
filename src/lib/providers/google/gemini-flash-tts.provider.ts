@@ -1,8 +1,8 @@
 import { DomainError } from '@/lib/domain/errors';
 import { resolveGoogleTtsAuthorization } from '@/lib/providers/google/google-tts-auth';
-import { alignAudioToText } from '@/lib/providers/google/google-speech-alignment';
 import { parseGoogleTtsError } from '@/lib/providers/google/parse-google-tts-error';
 import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
+import type { NarrationAligner } from '@/lib/providers/interfaces/narration-aligner';
 import type {
   TtsGenerateParams,
   TtsGenerateResult,
@@ -27,7 +27,10 @@ type GoogleSynthesizeResponse = {
 };
 
 export class GeminiFlashTtsProvider implements TtsProvider {
-  constructor(private readonly config: GeminiFlashTtsConfig) {}
+  constructor(
+    private readonly config: GeminiFlashTtsConfig,
+    private readonly narrationAligner: NarrationAligner
+  ) {}
 
   async generateSpeech(params: TtsGenerateParams): Promise<TtsGenerateResult> {
     const result = await this.synthesize(params.text);
@@ -42,15 +45,17 @@ export class GeminiFlashTtsProvider implements TtsProvider {
     params: TtsGenerateParams
   ): Promise<TtsGenerateWithTimestampsResult> {
     const result = await this.synthesize(params.text);
-    const { alignment, strategy } = await alignAudioToText(params.text, result.buffer, {
-      apiKey: this.config.apiKey,
-      credentialsJson: this.config.credentialsJson,
-      projectId: this.config.projectId,
+    const { alignment, strategy, provider } = await this.narrationAligner.align({
+      text: params.text,
+      audioBuffer: result.buffer,
+      contentType: result.contentType,
       languageCode: this.config.languageCode,
     });
 
-    if (strategy !== 'speech-to-text') {
-      console.warn(`[GeminiFlashTts] Alinhamento via ${strategy} para bloco ${params.blockKey}.`);
+    if (strategy !== 'provider') {
+      console.warn(
+        `[GeminiFlashTts] Alinhamento via ${strategy} (${provider}) para bloco ${params.blockKey}.`
+      );
     }
 
     return {

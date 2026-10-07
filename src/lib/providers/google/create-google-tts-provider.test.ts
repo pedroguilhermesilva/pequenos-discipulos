@@ -15,7 +15,11 @@ describe('createGoogleTtsProvider', () => {
 
     expect(config.provider).toBe('gemini');
     expect(config.cacheSuffix).toContain('gemini-2.5-flash-tts:Leda:');
-    expect(createGoogleTtsProvider(config)).toBeInstanceOf(GeminiFlashTtsProvider);
+    expect(
+      createGoogleTtsProvider(config, {
+        NARRATION_ALIGNER: 'google',
+      })
+    ).toBeInstanceOf(GeminiFlashTtsProvider);
   });
 
   it('creates Neural2 provider when requested', () => {

@@ -26,7 +26,14 @@ Pesquisa com base na [documentação oficial de preços](https://cloud.google.co
 
 **API usada:** Cloud Text-to-Speech `POST /v1/text:synthesize` com `input.text`, `input.prompt`, `voice.modelName` e `voice.name`. Reutiliza `GOOGLE_TTS_API_KEY` (restrita à Cloud Text-to-Speech) ou `GOOGLE_TTS_CREDENTIALS_JSON`.
 
-**Alinhamento palavra a palavra:** Gemini TTS não devolve timepoints. Depois da síntese, o app envia o MP3 + texto conhecido ao **Cloud Speech-to-Text v2** (`recognizers/_:recognize`) com `enableWordTimeOffsets: true`, casa as palavras transcritas com o texto original (tolerando diferenças de pontuação/acento) e produz o mesmo formato de `NarrationAlignment` usado pelo highlight. Se o alinhamento falhar (áudio longo, API indisponível, matching fraco), o áudio toca com tempos estimados ou sem destaque — a narração **não quebra**.
+**Alinhamento palavra a palavra:** Gemini TTS não devolve timepoints. Depois da síntese, o app envia o MP3 + texto conhecido a um **aligner trocável** (`NARRATION_ALIGNER`):
+
+| `NARRATION_ALIGNER` | Implementação | Credencial | Custo ~3 min |
+|---------------------|---------------|------------|--------------|
+| `google` (default) | Cloud Speech-to-Text v2 | mesma `GOOGLE_TTS_API_KEY` + `GOOGLE_CLOUD_PROJECT_ID` | ~US$ 0,05 |
+| `groq` | Groq Whisper Large v3 Turbo (`timestamp_granularities=["word"]`, idioma `pt`) | `GROQ_API_KEY` | ~US$ 0,003 |
+
+O aligner casa as palavras transcritas com o texto original (tolerando diferenças de pontuação/acento) e produz o mesmo formato de `NarrationAlignment` usado pelo highlight. Se o alinhamento falhar, o áudio toca com tempos estimados ou sem destaque — a narração **não quebra**.
 
 **Cache:** chave `story-narration@<modelo>:<voz>:<hash-do-estilo>` (ex.: `story-narration@gemini-2.5-flash-tts:Leda:a1b2c3d4`). Campo `storyNarrationVoice` no conteúdo invalida cache ao mudar modelo, voz ou prompt.
 
@@ -49,7 +56,8 @@ WaveNet (`pt-BR-Wavenet-A`, US$ 4 / milhão) continua disponível via `GOOGLE_TT
 No [Google Cloud Console](https://console.cloud.google.com/) → **APIs e serviços** → **Biblioteca**:
 
 1. **Cloud Text-to-Speech API** — síntese Gemini + Neural2
-2. **Cloud Speech-to-Text API** — alinhamento pós-síntese (só necessário com provider `gemini`)
+2. **Cloud Speech-to-Text API** — alinhamento pós-síntese (só com `NARRATION_ALIGNER=google`, default)
+3. **Groq API** — alternativa de alinhamento com `NARRATION_ALIGNER=groq` (não precisa Speech-to-Text)
 
 Confirme que o **faturamento** está ativo no projeto.
 
@@ -57,9 +65,7 @@ Confirme que o **faturamento** está ativo no projeto.
 
 **APIs e serviços** → **Credenciais** → chave de API usada na Vercel (`GOOGLE_TTS_API_KEY`):
 
-- **Restrições de API:** permitir apenas
-  - Cloud Text-to-Speech API
-  - Cloud Speech-to-Text API
+- **Restrições de API:** permitir Cloud Text-to-Speech API (+ Speech-to-Text se `NARRATION_ALIGNER=google`)
 - **Restrições de aplicativo:** IPs/serviços conforme política (Vercel = sem restrição de IP, ou usar service account).
 
 Alternativa mais segura: **service account** com `GOOGLE_TTS_CREDENTIALS_JSON` (`client_email` + `private_key` + `project_id`).
@@ -75,6 +81,8 @@ Alternativa mais segura: **service account** com `GOOGLE_TTS_CREDENTIALS_JSON` (
 | `GOOGLE_TTS_GEMINI_VOICE` | não | `Leda` |
 | `GOOGLE_TTS_STYLE_PROMPT` | não | narradora calorosa… |
 | `GOOGLE_TTS_LANGUAGE` | não | `pt-BR` |
+| `NARRATION_ALIGNER` | não | `google` |
+| `GROQ_API_KEY` | sim (se `groq`) | `gsk_…` |
 | `TTS_USE_STUB` | não | `false` |
 
 \* Ou `GOOGLE_TTS_CREDENTIALS_JSON` (neste caso `project_id` no JSON substitui `GOOGLE_CLOUD_PROJECT_ID`).
@@ -97,8 +105,10 @@ GOOGLE_TTS_VOICE=pt-BR-Neural2-C
 | Item | Estimativa |
 |------|------------|
 | Gemini 2.5 Flash TTS (síntese) | US$ 0,05 – 0,07 |
-| Speech-to-Text (alinhamento, ~3 min) | ~US$ 0,05 |
-| **Total Gemini (padrão)** | **~US$ 0,10 – 0,12 / história** |
+| Alinhamento Google STT (~3 min) | ~US$ 0,05 |
+| Alinhamento Groq Whisper (~3 min) | ~US$ 0,003 |
+| **Total Gemini + Google aligner** | **~US$ 0,10 – 0,12 / história** |
+| **Total Gemini + Groq aligner** | **~US$ 0,05 – 0,07 / história** |
 | Neural2 (alternativa, com timepoints nativos) | ~US$ 0,05 (dentro da cota grátis de 1M chars) |
 
 Valores aproximados; monitorize no [Cloud Billing](https://console.cloud.google.com/billing).
