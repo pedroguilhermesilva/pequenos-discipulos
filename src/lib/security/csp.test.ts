@@ -8,6 +8,14 @@ import {
 
 const TEST_NONCE = 'dGVzdC1ub25jZQ==';
 
+function styleSrcDirective(csp: string): string {
+  return csp.split('; ').find((part) => part.startsWith('style-src')) ?? '';
+}
+
+function scriptSrcDirective(csp: string): string {
+  return csp.split('; ').find((part) => part.startsWith('script-src')) ?? '';
+}
+
 describe('generateCspNonce', () => {
   it('returns a base64-encoded string', () => {
     const nonce = generateCspNonce();
@@ -30,11 +38,14 @@ describe('buildContentSecurityPolicy', () => {
       isPreview: false,
     });
 
-    expect(csp).toContain(`script-src 'self' 'nonce-${TEST_NONCE}' 'strict-dynamic'`);
-    expect(csp).not.toContain("'unsafe-inline'");
+    expect(scriptSrcDirective(csp)).toBe(
+      `script-src 'self' 'nonce-${TEST_NONCE}' 'strict-dynamic'`
+    );
+    expect(styleSrcDirective(csp)).toBe(
+      "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'"
+    );
+    expect(styleSrcDirective(csp)).not.toContain('nonce-');
     expect(csp).not.toContain("'unsafe-eval'");
-    expect(csp).toContain("style-src 'self' https://fonts.googleapis.com");
-    expect(csp).toContain(`'nonce-${TEST_NONCE}'`);
     expect(csp).toContain("media-src 'self' blob:");
     expect(csp).toContain("connect-src 'self'");
     expect(csp).toContain('https://lh3.googleusercontent.com');
@@ -46,26 +57,39 @@ describe('buildContentSecurityPolicy', () => {
     expect(csp).not.toContain('vercel.live');
   });
 
-  it('allows unsafe-eval and inline styles only in development', () => {
+  it('allows unsafe-eval in development script-src only', () => {
     const csp = buildContentSecurityPolicy({
       nonce: TEST_NONCE,
       isDev: true,
       isPreview: false,
     });
 
-    expect(csp).toContain("'unsafe-eval'");
-    expect(csp).toContain("style-src 'self' https://fonts.googleapis.com 'unsafe-inline'");
-    expect(csp).not.toContain(`style-src 'self' https://fonts.googleapis.com 'nonce-${TEST_NONCE}'`);
+    expect(scriptSrcDirective(csp)).toContain("'unsafe-eval'");
+    expect(styleSrcDirective(csp)).toBe(
+      "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'"
+    );
+    expect(styleSrcDirective(csp)).not.toContain('nonce-');
   });
 
-  it('extends connect-src and script-src for Vercel preview tooling', () => {
+  it('uses host allowlist for Vercel preview without strict-dynamic', () => {
     const csp = buildContentSecurityPolicy({
       nonce: TEST_NONCE,
       isDev: false,
       isPreview: true,
     });
 
-    expect(csp).toContain('https://vercel.live');
+    const scriptSrc = scriptSrcDirective(csp);
+    expect(scriptSrc).toContain(`'nonce-${TEST_NONCE}'`);
+    expect(scriptSrc).toContain('https://vercel.live');
+    expect(scriptSrc).toContain('https://vercel.com');
+    expect(scriptSrc).toContain("'unsafe-inline'");
+    expect(scriptSrc).not.toContain("'strict-dynamic'");
+
+    const styleSrc = styleSrcDirective(csp);
+    expect(styleSrc).toContain("'unsafe-inline'");
+    expect(styleSrc).toContain('https://vercel.live');
+    expect(styleSrc).not.toContain('nonce-');
+
     expect(csp).toContain('https://vitals.vercel-insights.com');
     expect(csp).toContain('https://*.pusher.com');
     expect(csp).toContain('wss://*.pusher.com');
@@ -87,10 +111,29 @@ describe('applyContentSecurityPolicy', () => {
     expect(nonce).toBeTruthy();
     expect(requestHeaders.get('Content-Security-Policy')).toBe(csp);
     expect(responseHeaders.get('Content-Security-Policy')).toBe(csp);
-    expect(csp).toContain(`'nonce-${nonce}'`);
+    expect(scriptSrcDirective(csp)).toContain(`'nonce-${nonce}'`);
 
     for (const { key, value } of STATIC_SECURITY_HEADERS) {
       expect(responseHeaders.get(key)).toBe(value);
+    }
+  });
+
+  it('detects preview deployments via VERCEL_ENV', () => {
+    const previous = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = 'preview';
+
+    try {
+      const requestHeaders = new Headers();
+      const responseHeaders = new Headers();
+      const csp = applyContentSecurityPolicy(requestHeaders, responseHeaders);
+      expect(scriptSrcDirective(csp)).not.toContain("'strict-dynamic'");
+      expect(scriptSrcDirective(csp)).toContain('https://vercel.live');
+    } finally {
+      if (previous === undefined) {
+        delete process.env.VERCEL_ENV;
+      } else {
+        process.env.VERCEL_ENV = previous;
+      }
     }
   });
 });

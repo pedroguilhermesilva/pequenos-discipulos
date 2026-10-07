@@ -10,27 +10,48 @@ export function generateCspNonce(): string {
   return Buffer.from(randomUUID()).toString('base64');
 }
 
-export function buildContentSecurityPolicy(
-  options: ContentSecurityPolicyOptions
-): string {
-  const { nonce, isDev = false, isPreview = false } = options;
+/**
+ * style-src uses 'unsafe-inline' without a nonce on purpose: React inline `style={}`
+ * props cannot receive CSP nonces, and browsers ignore 'unsafe-inline' when a nonce
+ * is also present in the same directive.
+ */
+function buildStyleSrc(isPreview: boolean): string {
+  const sources = [
+    "'self'",
+    'https://fonts.googleapis.com',
+    "'unsafe-inline'",
+    ...(isPreview ? ['https://vercel.live', 'https://vercel.com'] : []),
+  ];
+  return `style-src ${sources.join(' ')}`;
+}
 
-  const scriptSrc = [
+function buildScriptSrc(nonce: string, isDev: boolean, isPreview: boolean): string {
+  if (isPreview) {
+    // strict-dynamic disables host allowlists; Vercel Live scripts are external and
+    // do not carry our nonce, so preview uses an explicit host allowlist instead.
+    const sources = [
+      "'self'",
+      `'nonce-${nonce}'`,
+      'https://vercel.live',
+      'https://vercel.com',
+      "'unsafe-inline'",
+    ];
+    return `script-src ${sources.join(' ')}`;
+  }
+
+  const sources = [
     "'self'",
     `'nonce-${nonce}'`,
     "'strict-dynamic'",
     ...(isDev ? ["'unsafe-eval'"] : []),
-    ...(isPreview ? ['https://vercel.live'] : []),
   ];
+  return `script-src ${sources.join(' ')}`;
+}
 
-  const styleSrc = [
-    "'self'",
-    'https://fonts.googleapis.com',
-    ...(isDev ? ["'unsafe-inline'"] : [`'nonce-${nonce}'`]),
-    ...(isPreview
-      ? ['https://vercel.live', 'https://vercel.com', "'unsafe-inline'"]
-      : []),
-  ];
+export function buildContentSecurityPolicy(
+  options: ContentSecurityPolicyOptions
+): string {
+  const { nonce, isDev = false, isPreview = false } = options;
 
   const connectSrc = [
     "'self'",
@@ -66,8 +87,8 @@ export function buildContentSecurityPolicy(
 
   const directives = [
     "default-src 'self'",
-    `script-src ${scriptSrc.join(' ')}`,
-    `style-src ${styleSrc.join(' ')}`,
+    buildScriptSrc(nonce, isDev, isPreview),
+    buildStyleSrc(isPreview),
     `font-src ${fontSrc.join(' ')}`,
     `img-src ${imgSrc.join(' ')}`,
     "media-src 'self' blob:",

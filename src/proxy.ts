@@ -7,6 +7,9 @@ const PUBLIC_PATHS = ['/', '/login'];
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;
+  if (process.env.E2E_CSP_FIXTURE === '1' && pathname === '/test/csp-fixture') {
+    return true;
+  }
   if (pathname.startsWith('/api/auth')) return true;
   if (pathname === '/api/auth/register') return true;
   return false;

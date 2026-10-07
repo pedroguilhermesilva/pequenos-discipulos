@@ -18,6 +18,7 @@ npm test
 npm run lint
 npm run build
 npm run test:e2e
+npm run test:e2e:csp   # CSP e2e (build produção + fixture /test/csp-fixture)
 npm run dev
 ```
 

@@ -4,6 +4,24 @@ const databaseUrl =
   process.env.DATABASE_URL ??
   'postgresql://postgres:postgres@localhost:5432/pequenos_discipulos';
 
+const isCspProduction = process.env.E2E_CSP_PRODUCTION === '1';
+
+const sharedServerEnv = {
+  ...process.env,
+  DATABASE_URL: databaseUrl,
+  DIRECT_URL: process.env.DIRECT_URL ?? databaseUrl,
+  AUTH_SECRET: process.env.AUTH_SECRET ?? 'playwright-test-auth-secret',
+  AUTH_URL: 'http://127.0.0.1:3000',
+  LLM_USE_STUB: 'true',
+  TTS_USE_STUB: 'true',
+  ...(isCspProduction
+    ? {
+        E2E_CSP_FIXTURE: '1',
+        NODE_ENV: 'production',
+      }
+    : {}),
+};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -15,20 +33,20 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:3000',
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: isCspProduction
+    ? [{ name: 'csp-production', use: { ...devices['Desktop Chrome'] } }]
+    : [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+          testIgnore: /csp-violations\.spec\.ts/,
+        },
+      ],
   webServer: {
-    command: 'npm run dev',
+    command: isCspProduction ? 'npm start' : 'npm run dev',
     url: 'http://127.0.0.1:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && !isCspProduction,
     timeout: 120_000,
-    env: {
-      ...process.env,
-      DATABASE_URL: databaseUrl,
-      AUTH_SECRET: process.env.AUTH_SECRET ?? 'playwright-test-auth-secret',
-      AUTH_URL: 'http://127.0.0.1:3000',
-      DIRECT_URL: databaseUrl,
-      LLM_USE_STUB: 'true',
-      TTS_USE_STUB: 'true',
-    },
+    env: sharedServerEnv,
   },
 });
