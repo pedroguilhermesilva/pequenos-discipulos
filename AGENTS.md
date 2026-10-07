@@ -25,7 +25,7 @@ npm run dev
 
 Ver `.env.example`. Obrigatórias em produção: `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_URL`.
 
-Opcionais em produção: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limit partilhado).
+Opcionais em produção: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limit partilhado); `BLOB_READ_WRITE_TOKEN` (áudio privado no Vercel Blob store `pequenos-discipulos-audio`).
 
 ## Bíblia
 

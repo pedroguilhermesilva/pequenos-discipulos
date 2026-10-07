@@ -1,11 +1,14 @@
-import { mkdir, unlink, writeFile, access } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { access, mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { StorageProvider } from '@/lib/providers/interfaces/storage.provider';
+import { Readable } from 'node:stream';
+import type { StorageProvider, StorageReadResult } from '@/lib/providers/interfaces/storage.provider';
+import { contentTypeFromPath } from '@/lib/storage/content-type';
 
 const STORAGE_ROOT = path.join(process.cwd(), 'storage');
 
 export class LocalStorageProvider implements StorageProvider {
-  async save(relativePath: string, data: Buffer, _contentType?: string): Promise<string> {
+  async save(relativePath: string, data: Buffer, contentType?: string): Promise<string> {
     const absolute = path.join(STORAGE_ROOT, relativePath);
     await mkdir(path.dirname(absolute), { recursive: true });
     await writeFile(absolute, data);
@@ -31,5 +34,20 @@ export class LocalStorageProvider implements StorageProvider {
     } catch {
       // ignore missing files
     }
+  }
+
+  async read(relativePath: string): Promise<StorageReadResult | null> {
+    const absolute = path.join(STORAGE_ROOT, relativePath);
+    try {
+      await access(absolute);
+    } catch {
+      return null;
+    }
+
+    const nodeStream = createReadStream(absolute);
+    return {
+      stream: Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>,
+      contentType: contentTypeFromPath(relativePath),
+    };
   }
 }

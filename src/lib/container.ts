@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { LocalStorageProvider } from '@/lib/providers/local/local-storage.provider';
+import { createStorageProvider } from '@/lib/providers/create-storage-provider';
 import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
@@ -21,6 +21,7 @@ import { StoryCacheService } from '@/lib/services/story-cache.service';
 import { StoryGenerationService } from '@/lib/services/story-generation.service';
 import { VoteService } from '@/lib/services/vote.service';
 import { AudioService } from '@/lib/services/audio.service';
+import { StorageAccessService } from '@/lib/services/storage-access.service';
 
 const adaptationRepo = new PrismaAdaptationRepository(prisma);
 const childProfileRepo = new PrismaChildProfileRepository(prisma);
@@ -71,7 +72,8 @@ const sfxProvider = useAudioStub
       model: elevenSfxModel,
     });
 
-const storageProvider = new LocalStorageProvider();
+const storageProvider = createStorageProvider();
+const storageAccessService = new StorageAccessService(prisma);
 
 const planLimitsService = new PlanLimitsService(usageRepo, childProfileRepo);
 const audioService = new AudioService(prisma, ttsProvider, sfxProvider, storageProvider);
@@ -113,6 +115,7 @@ export const container = {
     quiz: new QuizService(adaptationRepo),
     votes: new VoteService(voteRepo, adaptationRepo, userStoryRepo),
     audio: audioService,
+    storageAccess: storageAccessService,
     collections: collectionRepo,
   },
 };

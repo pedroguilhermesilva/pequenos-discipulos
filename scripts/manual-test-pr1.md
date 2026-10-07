@@ -86,7 +86,18 @@ Opcional (rate limit em prod): `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TO
 
 ---
 
-## 8. Regressão rápida
+## 8. Áudio privado (Blob + /api/storage)
+
+| Passo | Acção | Resultado esperado |
+|-------|--------|-------------------|
+| 8.1 | Abrir história com botões de som interactivos | Áudio reproduz (URLs `/api/storage/audio/...`) |
+| 8.2 | DevTools → abrir URL de áudio **sem** cookie de sessão | **401** ou redirect para login |
+| 8.3 | DevTools → URL de áudio de adaptação de **outra** conta | **404** (sem IDOR) |
+| 8.4 | Confirmar que URLs **não** apontam para `*.private.blob.vercel-storage.com` | Só paths internos `/api/storage/...` |
+
+---
+
+## 9. Regressão rápida
 
 ```bash
 npm test

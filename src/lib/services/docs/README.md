@@ -27,6 +27,12 @@ Gera ou reutiliza adaptações de passagens bíblicas.
 
 Seleção de adaptações já existentes por `voteScore`, excluindo as do próprio utilizador e as já vistas.
 
+## Armazenamento de áudio
+
+- **Produção/preview (Vercel):** `BlobStorageProvider` quando `BLOB_READ_WRITE_TOKEN` está definido — store privado `pequenos-discipulos-audio` (fra1). URLs servidas via `/api/storage/...` (nunca URL privada do Blob nem o token).
+- **Local:** `LocalStorageProvider` grava em `./storage/` com o mesmo proxy `/api/storage/...`.
+- **Autorização:** `StorageAccessService` — só entrega ficheiro se existir `AudioAsset` registado **e** o utilizador tiver `UserStory` ou tiver criado a adaptação.
+
 ## Índice bíblico
 
 Metadados em `data/bible/index.json` — livros, abreviações, testamentos, versículos por capítulo. Usado pela UI para seleção/validação; **não** inclui texto dos versículos.
@@ -54,3 +60,4 @@ Votos e aprovação familiar — **sempre** atrás de parent gate validado no se
 | `LLM_*` | Geração de histórias |
 | `ELEVENLABS_*` / `TTS_USE_STUB` | Áudio |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limit partilhado (prod) |
+| `BLOB_READ_WRITE_TOKEN` | Áudio privado no Vercel Blob (prod/preview) |
