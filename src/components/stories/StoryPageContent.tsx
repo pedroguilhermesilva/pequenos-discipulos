@@ -197,6 +197,10 @@ function StoryPageInner() {
           storyTitle={story.title}
           suggestedPassageId={suggestedPassageId}
           backHref={backHref}
+          initialBookId={urlParams.bookId ?? undefined}
+          initialChapter={urlParams.chapter ?? undefined}
+          initialVerseFrom={urlParams.verseFrom ?? undefined}
+          initialVerseTo={urlParams.verseTo ?? undefined}
         />
       )}
 

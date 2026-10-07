@@ -12,7 +12,6 @@ import {
   getPassageById,
   getSelectionFromPassageId,
   getVerseSpan,
-  MAX_VERSE_SPAN,
   suggestedPassages,
   validateVerseRange,
   type PassageRange,
@@ -26,6 +25,10 @@ interface PassageSelectionProps {
   storyTitle: string;
   suggestedPassageId?: string;
   backHref?: string;
+  initialBookId?: string;
+  initialChapter?: number;
+  initialVerseFrom?: number;
+  initialVerseTo?: number;
 }
 
 const selectClassName = cn(
@@ -39,7 +42,31 @@ const selectStyle = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`,
 };
 
-function getInitialState(suggestedPassageId?: string) {
+function getInitialState(
+  suggestedPassageId?: string,
+  restored?: {
+    bookId?: string;
+    chapter?: number;
+    verseFrom?: number;
+    verseTo?: number;
+  }
+) {
+  if (restored?.bookId) {
+    const option =
+      restored.chapter !== undefined
+        ? getChapterOption(restored.bookId, restored.chapter)
+        : getChapters(restored.bookId)[0];
+
+    if (option) {
+      return {
+        bookId: restored.bookId,
+        chapter: option.chapter,
+        verseFrom: restored.verseFrom ?? option.defaultVerseFrom,
+        verseTo: restored.verseTo ?? option.defaultVerseTo,
+      };
+    }
+  }
+
   const suggested = suggestedPassageId ? getSelectionFromPassageId(suggestedPassageId) : null;
 
   if (suggested) {
@@ -69,11 +96,24 @@ export function PassageSelection({
   storyTitle,
   suggestedPassageId,
   backHref = '/biblioteca',
+  initialBookId,
+  initialChapter,
+  initialVerseFrom,
+  initialVerseTo,
 }: PassageSelectionProps) {
   const router = useRouter();
   const oldTestamentBooks = useMemo(() => getBooksByTestament('old'), []);
   const newTestamentBooks = useMemo(() => getBooksByTestament('new'), []);
-  const initial = useMemo(() => getInitialState(suggestedPassageId), [suggestedPassageId]);
+  const initial = useMemo(
+    () =>
+      getInitialState(suggestedPassageId, {
+        bookId: initialBookId,
+        chapter: initialChapter,
+        verseFrom: initialVerseFrom,
+        verseTo: initialVerseTo,
+      }),
+    [suggestedPassageId, initialBookId, initialChapter, initialVerseFrom, initialVerseTo]
+  );
 
   const [bookId, setBookId] = useState(initial.bookId);
   const [chapter, setChapter] = useState(initial.chapter);
@@ -96,6 +136,11 @@ export function PassageSelection({
     const max = chapterOption?.maxVerse ?? 1;
     return Array.from({ length: max }, (_, i) => i + 1);
   }, [chapterOption]);
+
+  const deOptions = useMemo(
+    () => verseOptions.filter((v) => v <= verseTo),
+    [verseOptions, verseTo]
+  );
 
   const ateOptions = useMemo(
     () => verseOptions.filter((v) => v >= verseFrom),
@@ -126,16 +171,13 @@ export function PassageSelection({
   useEffect(() => {
     if (!chapterOption) return;
     if (verseFrom > chapterOption.maxVerse) {
-      setVerseFrom(chapterOption.defaultVerseFrom);
+      setVerseFrom(1);
     }
     if (verseTo > chapterOption.maxVerse) {
-      setVerseTo(chapterOption.defaultVerseTo);
+      setVerseTo(chapterOption.maxVerse);
     }
     if (verseTo < verseFrom) {
       setVerseTo(verseFrom);
-    }
-    if (verseTo - verseFrom + 1 > MAX_VERSE_SPAN) {
-      setVerseTo(Math.min(verseFrom + MAX_VERSE_SPAN - 1, chapterOption.maxVerse));
     }
   }, [chapterOption, verseFrom, verseTo]);
 
@@ -166,15 +208,14 @@ export function PassageSelection({
   const handleVerseFromChange = (value: number) => {
     setVerseFrom(value);
     setActiveSuggestionId(null);
-    const maxTo = Math.min(value + MAX_VERSE_SPAN - 1, chapterOption?.maxVerse ?? value);
     if (verseTo < value) setVerseTo(value);
-    else if (verseTo > maxTo) setVerseTo(maxTo);
     setRangeError(null);
   };
 
   const handleVerseToChange = (value: number) => {
     setVerseTo(value);
     setActiveSuggestionId(null);
+    if (verseFrom > value) setVerseFrom(value);
     setRangeError(null);
   };
 
@@ -356,7 +397,7 @@ export function PassageSelection({
               className={selectClassName}
               style={selectStyle}
             >
-              {verseOptions.map((v) => (
+              {deOptions.map((v) => (
                 <option key={v} value={v}>
                   Versículo {v}
                 </option>
@@ -378,21 +419,19 @@ export function PassageSelection({
               className={selectClassName}
               style={selectStyle}
             >
-              {ateOptions
-                .filter((v) => v <= verseFrom + MAX_VERSE_SPAN - 1)
-                .map((v) => (
-                  <option key={v} value={v}>
-                    Versículo {v}
-                  </option>
-                ))}
+              {ateOptions.map((v) => (
+                <option key={v} value={v}>
+                  Versículo {v}
+                </option>
+              ))}
             </select>
           </div>
         </div>
 
         <p className="text-xs text-oliva">
-          Máximo de {MAX_VERSE_SPAN} versículos por história
+          {chapterOption ? `${chapterOption.maxVerse} versículos neste capítulo` : null}
           {verseSpan > 0 && (
-            <span className={cn('ml-1', verseSpan > MAX_VERSE_SPAN && 'text-laranja font-semibold')}>
+            <span className="ml-1">
               · {verseSpan} selecionado{verseSpan !== 1 ? 's' : ''}
             </span>
           )}

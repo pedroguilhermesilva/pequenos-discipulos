@@ -32,6 +32,19 @@ describe('domain schemas', () => {
     expect(parsed.success).toBe(true);
   });
 
+  it('rejects generate story input when verseFrom is after verseTo', () => {
+    const parsed = generateStoryInputSchema.safeParse({
+      passageSlug: 'mateus-2-1-3',
+      bibleVersionId: '211',
+      verseFrom: 13,
+      verseTo: 10,
+      ageTier: '3-5',
+      languageStyle: 'rhymes',
+      contentType: 'text',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   it('requires bibleVersionId in preferences', () => {
     const parsed = userPreferencesSchema.safeParse({
       childName: 'Davi',

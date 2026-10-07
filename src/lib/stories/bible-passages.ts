@@ -92,9 +92,6 @@ export function chunkBibleVerses(
   return pages;
 }
 
-/** Maximum number of verses allowed in a single adaptation */
-export const MAX_VERSE_SPAN = 20;
-
 /** Curated passages recommended for children — shown as quick picks */
 export const suggestedPassages: BiblePassage[] = [
   {
@@ -180,7 +177,6 @@ function buildDynamicPassage(bookId: string, chapter: number): BiblePassage | un
   if (!book || chapter < 1 || chapter > book.versesPerChapter.length) return undefined;
 
   const maxVerse = book.versesPerChapter[chapter - 1];
-  const defaultVerseTo = Math.min(MAX_VERSE_SPAN, maxVerse);
 
   return {
     id: buildPassageId(bookId, chapter),
@@ -189,7 +185,7 @@ function buildDynamicPassage(bookId: string, chapter: number): BiblePassage | un
     chapters: String(chapter),
     chapter,
     defaultVerseFrom: 1,
-    defaultVerseTo,
+    defaultVerseTo: maxVerse,
     maxVerse,
     preview: `Passagem de ${book.name} ${chapter} — selecione os versículos que deseja adaptar.`,
     verses: [],
@@ -225,7 +221,7 @@ export function getChapters(bookId: string): BibleChapterOption[] {
       maxVerse,
       passageId: curated?.id ?? buildPassageId(bookId, chapter),
       defaultVerseFrom: 1,
-      defaultVerseTo: Math.min(MAX_VERSE_SPAN, maxVerse),
+      defaultVerseTo: maxVerse,
       preview: curated?.preview,
     };
   });
@@ -272,11 +268,6 @@ export function validateVerseRange(
   }
   if (range.verseFrom > range.verseTo) return '"De" deve ser menor ou igual a "Até"';
 
-  const span = getVerseSpan(range);
-  if (span > MAX_VERSE_SPAN) {
-    return `Selecione no máximo ${MAX_VERSE_SPAN} versículos por história`;
-  }
-
   return null;
 }
 
@@ -292,7 +283,7 @@ export function getSelectionFromPassageId(passageId: string): {
       bookId: slugifyBook(curated.book),
       chapter: curated.chapter,
       verseFrom: curated.defaultVerseFrom,
-      verseTo: Math.min(curated.defaultVerseTo, MAX_VERSE_SPAN),
+      verseTo: curated.defaultVerseTo,
     };
   }
 
@@ -349,26 +340,7 @@ export function isDefaultPassageRange(passage: BiblePassage, range: PassageRange
 export function formatPassageReference(passage: BiblePassage, range?: PassageRange): string {
   const verseFrom = range?.verseFrom ?? passage.defaultVerseFrom;
   const verseTo = range?.verseTo ?? passage.defaultVerseTo;
-  const isDefault = verseFrom === passage.defaultVerseFrom && verseTo === passage.defaultVerseTo;
-
-  if (passage.chapterEnd) {
-    if (isDefault) {
-      return `${passage.book} ${passage.chapter}–${passage.chapterEnd}`;
-    }
-    if (verseFrom === verseTo) {
-      return `${passage.book} ${passage.chapter}:${verseFrom}`;
-    }
-    return `${passage.book} ${passage.chapter}:${verseFrom}–${verseTo}`;
-  }
-
-  if (isDefault && verseFrom === 1 && verseTo === passage.maxVerse) {
-    return `${passage.book} ${passage.chapter}`;
-  }
-
-  if (verseFrom === verseTo) {
-    return `${passage.book} ${passage.chapter}:${verseFrom}`;
-  }
-  return `${passage.book} ${passage.chapter}:${verseFrom}–${verseTo}`;
+  return formatChapterReference(passage.book, passage.chapter, { verseFrom, verseTo });
 }
 
 /** @deprecated Use suggestedPassages */

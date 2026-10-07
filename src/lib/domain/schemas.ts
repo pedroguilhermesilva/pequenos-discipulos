@@ -144,6 +144,9 @@ export const generateStoryInputSchema = z.object({
   idempotencyKey: z.string().optional(),
   mode: z.enum(['initial', 'regenerate']).optional(),
   currentAdaptationId: z.string().optional(),
+}).refine((input) => input.verseFrom <= input.verseTo, {
+  message: '"De" deve ser menor ou igual a "Até"',
+  path: ['verseFrom'],
 });
 
 export type StoryTextPart = z.infer<typeof storyTextPartSchema>;

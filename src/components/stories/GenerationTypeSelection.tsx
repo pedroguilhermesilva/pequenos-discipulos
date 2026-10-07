@@ -8,6 +8,7 @@ import { contentTypeConfig } from '@/lib/stories/content-type';
 import {
   formatPassageReference,
   getPassageById,
+  getSelectionFromPassageId,
   type PassageRange,
 } from '@/lib/stories/bible-passages';
 import { buildStoryUrl } from '@/lib/stories/story-url';
@@ -19,6 +20,7 @@ const generationTypes: Array<{
   label: string;
   sublabel: string;
   description: string;
+  disabled?: boolean;
 }> = [
   {
     id: 'text',
@@ -35,8 +37,9 @@ const generationTypes: Array<{
   {
     id: 'video',
     label: 'Vídeo',
-    sublabel: 'Storyboard animado',
-    description: 'Cenas animadas com narração para uma experiência visual.',
+    sublabel: 'Em breve',
+    description: 'Cenas animadas com narração — ainda não disponível.',
+    disabled: true,
   },
 ];
 
@@ -54,9 +57,16 @@ export function GenerationTypeSelection({
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<ContentType | null>(null);
   const passage = getPassageById(passageId);
+  const selection = getSelectionFromPassageId(passageId);
   const passageReference = passage
     ? formatPassageReference(passage, passageRange)
     : 'a passagem selecionada';
+  const backHref = buildStoryUrl(storyId, {
+    bookId: selection?.bookId,
+    chapter: selection?.chapter,
+    verseFrom: passageRange.verseFrom,
+    verseTo: passageRange.verseTo,
+  });
 
   const handleGenerate = () => {
     if (!selectedType) return;
@@ -74,11 +84,7 @@ export function GenerationTypeSelection({
     <div className="space-y-8 animate-fade-in">
       <header className="space-y-2">
         <Link
-          href={buildStoryUrl(storyId, {
-            passageId,
-            verseFrom: passageRange.verseFrom,
-            verseTo: passageRange.verseTo,
-          })}
+          href={backHref}
           className="inline-flex items-center gap-2 text-oliva hover:text-tinta transition-colors font-semibold text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja rounded mb-4"
         >
           <span className="material-symbols-outlined text-base">arrow_back</span>
@@ -115,14 +121,19 @@ export function GenerationTypeSelection({
       >
         {generationTypes.map((type) => {
           const config = contentTypeConfig[type.id];
+          const disabled = Boolean(type.disabled);
           return (
             <div key={type.id} className="flex flex-col gap-3">
               <SelectionCard
                 selected={selectedType === type.id}
-                onClick={() => setSelectedType(type.id)}
+                onClick={() => {
+                  if (disabled) return;
+                  setSelectedType(type.id);
+                }}
                 icon={config.icon}
                 label={type.label}
                 sublabel={type.sublabel}
+                disabled={disabled}
               />
               <p className="text-xs text-oliva text-center px-2">{type.description}</p>
             </div>
