@@ -46,6 +46,10 @@ const llmProvider = useLlmStub
       baseUrl: llmBaseUrl,
       model: llmModel,
       providerName: 'LLM',
+      responseFormat:
+        process.env.LLM_RESPONSE_FORMAT === 'json_object' || process.env.LLM_RESPONSE_FORMAT === 'json_schema'
+          ? process.env.LLM_RESPONSE_FORMAT
+          : undefined,
     });
 
 const googleTtsRuntimeConfig = resolveGoogleTtsRuntimeConfig(process.env);

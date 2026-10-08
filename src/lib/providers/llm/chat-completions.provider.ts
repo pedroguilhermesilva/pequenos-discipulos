@@ -1,5 +1,9 @@
-import { DomainError, LlmValidationError } from '@/lib/domain/errors';
+import { DomainError, FRIENDLY_GENERATION_ERROR, LlmValidationError } from '@/lib/domain/errors';
 import { parseStoryGenerationResponse } from '@/lib/llm/parse-story-response';
+import {
+  STORY_RESPONSE_JSON_SCHEMA,
+  STORY_RESPONSE_SCHEMA_NAME,
+} from '@/lib/llm/story-response-json-schema';
 import {
   buildStoryGenerationSystemPrompt,
   buildStoryGenerationUserPrompt,
@@ -10,12 +14,58 @@ import type {
   LlmProvider,
 } from '@/lib/providers/interfaces/llm.provider';
 
+export type LlmResponseFormat = 'json_schema' | 'json_object';
+
 export interface ChatCompletionsLlmConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
   /** Label used in error messages (e.g. OpenAI, Groq) */
   providerName?: string;
+  /**
+   * `json_schema` = OpenAI Structured Outputs (strict). `json_object` = JSON livre + validação.
+   * Por omissão: json_schema para api.openai.com, json_object para os restantes.
+   */
+  responseFormat?: LlmResponseFormat;
+}
+
+const MAX_ATTEMPTS = 2;
+
+const RETRY_INSTRUCTIONS = `
+
+CORREÇÃO OBRIGATÓRIA: a resposta anterior não seguiu a estrutura.
+- Siga EXATAMENTE o formato JSON descrito (todos os campos, incluindo "rotulo" em cada bloco "interativo").
+- Alterne blocos "texto" e "interativo" (nunca dois do mesmo tipo seguidos).
+- Não coloque a história inteira em um único bloco "texto".
+- Termine com um bloco "texto" após o último "interativo".
+- Inclua "quiz" com title, subtitle, celebrationTitle, celebrationMessage e questions (2 a 3 perguntas, cada uma com exatamente 3 opções).`;
+
+export function resolveDefaultResponseFormat(baseUrl: string): LlmResponseFormat {
+  try {
+    return new URL(baseUrl).hostname === 'api.openai.com' ? 'json_schema' : 'json_object';
+  } catch {
+    return 'json_object';
+  }
+}
+
+function buildResponseFormat(format: LlmResponseFormat) {
+  if (format === 'json_object') return { type: 'json_object' as const };
+  return {
+    type: 'json_schema' as const,
+    json_schema: {
+      name: STORY_RESPONSE_SCHEMA_NAME,
+      strict: true,
+      schema: STORY_RESPONSE_JSON_SCHEMA,
+    },
+  };
+}
+
+function isResponseFormatRejection(status: number, body: string): boolean {
+  return status === 400 && /response_format|json_schema|structured/i.test(body);
+}
+
+function redact(text: string): string {
+  return text.replace(/sk-[A-Za-z0-9_*-]+/g, 'sk-[redacted]').slice(0, 300);
 }
 
 /**
@@ -24,28 +74,21 @@ export interface ChatCompletionsLlmConfig {
  */
 export class ChatCompletionsLlmProvider implements LlmProvider {
   private readonly providerName: string;
+  private responseFormat: LlmResponseFormat;
 
   constructor(private readonly config: ChatCompletionsLlmConfig) {
     this.providerName = config.providerName ?? 'LLM';
+    this.responseFormat = config.responseFormat ?? resolveDefaultResponseFormat(config.baseUrl);
   }
 
-  async generateStory(params: LlmGenerateStoryParams): Promise<LlmGenerateStoryResult> {
-    const baseUrl = this.config.baseUrl.replace(/\/$/, '');
-    const url = `${baseUrl}/chat/completions`;
-    let lastError: unknown;
+  private logContext(attempt: number) {
+    return `provider=${this.providerName} model=${this.config.model} format=${this.responseFormat} attempt=${attempt + 1}/${MAX_ATTEMPTS}`;
+  }
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const userPrompt =
-        attempt === 0
-          ? buildStoryGenerationUserPrompt(params)
-          : `${buildStoryGenerationUserPrompt(params)}
+  private async callApi(userPrompt: string, temperature: number): Promise<string> {
+    const url = `${this.config.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
-CORREÇÃO OBRIGATÓRIA: a resposta anterior não seguiu a estrutura.
-- Alterne blocos "texto" e "interativo" (nunca dois do mesmo tipo seguidos).
-- Não coloque a história inteira em um único bloco "texto".
-- Termine com um bloco "texto" após o último "interativo".
-- Inclua "quiz" com 2 a 3 perguntas; cada pergunta com exatamente 3 opções.`;
-
+    for (;;) {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -54,8 +97,8 @@ CORREÇÃO OBRIGATÓRIA: a resposta anterior não seguiu a estrutura.
         },
         body: JSON.stringify({
           model: this.config.model,
-          temperature: attempt === 0 ? 0.7 : 0.4,
-          response_format: { type: 'json_object' },
+          temperature,
+          response_format: buildResponseFormat(this.responseFormat),
           messages: [
             { role: 'system', content: buildStoryGenerationSystemPrompt() },
             { role: 'user', content: userPrompt },
@@ -65,31 +108,60 @@ CORREÇÃO OBRIGATÓRIA: a resposta anterior não seguiu a estrutura.
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '');
-        throw new DomainError(
-          'LLM_VALIDATION_ERROR',
-          `${this.providerName} respondeu ${response.status}${errorBody ? `: ${errorBody.slice(0, 240)}` : '.'}`
+
+        if (this.responseFormat === 'json_schema' && isResponseFormatRejection(response.status, errorBody)) {
+          console.warn(
+            `[LLM] ${this.providerName} recusou json_schema (${response.status}); a usar json_object. ${redact(errorBody)}`
+          );
+          this.responseFormat = 'json_object';
+          continue;
+        }
+
+        console.error(
+          `[LLM] ${this.providerName} respondeu ${response.status} model=${this.config.model}: ${redact(errorBody)}`
         );
+        throw new DomainError('LLM_UNAVAILABLE', FRIENDLY_GENERATION_ERROR);
       }
 
       const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string | null } }>;
+        choices?: Array<{ message?: { content?: string | null; refusal?: string | null } }>;
       };
-
-      const rawContent = payload.choices?.[0]?.message?.content;
-      if (!rawContent?.trim()) {
-        throw new DomainError('LLM_VALIDATION_ERROR', `${this.providerName} devolveu resposta vazia.`);
+      const message = payload.choices?.[0]?.message;
+      if (message?.refusal) {
+        throw new LlmValidationError(FRIENDLY_GENERATION_ERROR, `Modelo recusou: ${redact(message.refusal)}`);
       }
+      const rawContent = message?.content;
+      if (!rawContent?.trim()) {
+        throw new LlmValidationError(FRIENDLY_GENERATION_ERROR, 'Resposta vazia do modelo.');
+      }
+      return rawContent;
+    }
+  }
+
+  async generateStory(params: LlmGenerateStoryParams): Promise<LlmGenerateStoryResult> {
+    let lastError: LlmValidationError | undefined;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      const userPrompt =
+        attempt === 0
+          ? buildStoryGenerationUserPrompt(params)
+          : `${buildStoryGenerationUserPrompt(params)}${RETRY_INSTRUCTIONS}`;
 
       try {
+        const rawContent = await this.callApi(userPrompt, attempt === 0 ? 0.7 : 0.4);
         return parseStoryGenerationResponse(rawContent);
       } catch (error) {
+        if (!(error instanceof LlmValidationError)) throw error;
         lastError = error;
-        if (attempt === 1 || !(error instanceof LlmValidationError)) {
-          throw error;
+        const details = error.details ?? error.message;
+        if (attempt < MAX_ATTEMPTS - 1) {
+          console.warn(`[LLM] Resposta inválida, a tentar de novo. ${this.logContext(attempt)} ref="${params.reference}" ${details}`);
+        } else {
+          console.error(`[LLM] Resposta inválida após ${MAX_ATTEMPTS} tentativas. ${this.logContext(attempt)} ref="${params.reference}" ${details}`);
         }
       }
     }
 
-    throw lastError;
+    throw new LlmValidationError(FRIENDLY_GENERATION_ERROR, lastError?.details);
   }
 }

@@ -93,3 +93,16 @@ describe('formatPassageReference', () => {
     expect(formatPassageReference(passage!)).toBe('Mateus 1:1–25');
   });
 });
+
+describe('chapter and adaptation references', () => {
+  it('chapterReferenceForSlug returns a chapter-level reference (no verse range)', async () => {
+    const { chapterReferenceForSlug } = await import('@/lib/stories/bible-passages');
+    expect(chapterReferenceForSlug('1-samuel-17')).toBe('1 Samuel 17');
+  });
+
+  it('formatAdaptationReference uses the adaptation verse range, not the stored passage reference', async () => {
+    const { formatAdaptationReference } = await import('@/lib/stories/bible-passages');
+    expect(formatAdaptationReference('1-samuel-17', 1, 10, '1 Samuel 17:1–5')).toMatch(/^1 Samuel 17:1.10$/);
+    expect(formatAdaptationReference('slug-inexistente', 1, 10, 'Fallback')).toBe('Fallback');
+  });
+});

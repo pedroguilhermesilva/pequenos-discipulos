@@ -1,5 +1,6 @@
 import type { LlmGenerateStoryParams } from '@/lib/providers/interfaces/llm.provider';
 import { getAgeTierLabel } from '@/lib/stories/age-tiers';
+import { STORY_RESPONSE_EXAMPLE } from '@/lib/llm/story-response-json-schema';
 
 const LANGUAGE_STYLE_HINTS: Record<string, string> = {
   simple: 'frases curtas, vocabulário muito simples, tom acolhedor',
@@ -65,7 +66,18 @@ Inclua um objeto "quiz" com 2 a 3 perguntas sobre a história que acabou de ser 
 5. As opções erradas devem ser plausíveis, mas claramente distinguíveis da resposta certa.
 
 # FORMATO DE SAÍDA (RESPOSTA OBRIGATÓRIA EM JSON)
-Responda APENAS com o objeto JSON no formato acima, sem textos explicativos antes ou depois.`;
+Responda APENAS com um objeto JSON com EXATAMENTE estes campos (nomes em português/inglês como abaixo, sem campos extra):
+- metadata: { livro (texto), capitulo (número inteiro), versiculo (texto, ex.: "1-10"), idade_alvo (número inteiro) }
+- conteudo_estruturado: lista de blocos. Cada bloco é OU
+  - { "tipo": "texto", "conteudo": "..." } OU
+  - { "tipo": "interativo", "rotulo": "...", "texto_para_audio": "...", "tag_som": "..." } — TODO bloco "interativo" DEVE ter "rotulo" (texto curto do botão, ex.: "Ouvir o vento").
+- quiz: { title, subtitle, celebrationTitle, celebrationMessage, questions }
+  - questions: lista de 2 a 3 perguntas { id, type ("choice" ou "reflection"), prompt, options (exatamente 3 × { id, label, icon }), correctOptionId (id da opção certa em "choice"; null em "reflection"), encouragementCorrect, encouragementAlmost }
+
+Exemplo do formato (o conteúdo é só ilustrativo — narre a passagem pedida):
+${JSON.stringify(STORY_RESPONSE_EXAMPLE, null, 2)}
+
+Não escreva nada antes ou depois do JSON.`;
 }
 
 export function buildPedagogicalStoryUserPrompt(params: LlmGenerateStoryParams): string {

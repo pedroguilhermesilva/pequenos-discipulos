@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { FRIENDLY_GENERATION_ERROR } from '@/lib/domain/errors';
 import { StoryGenerationService } from '@/lib/services/story-generation.service';
 
 describe('StoryGenerationService cache-first behavior', () => {
@@ -140,5 +141,40 @@ describe('StoryGenerationService cache-first behavior', () => {
 
     expect(storyCache.pickHighestScoredUnseenCachedAdaptation).not.toHaveBeenCalled();
     expect(llm.generateStory).toHaveBeenCalledOnce();
+  });
+
+  it('stores a chapter-level Passage reference (the verse range lives on the adaptation)', async () => {
+    vi.mocked(prisma.passage.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.passage.create).mockResolvedValue({ id: 'passage-new' } as never);
+    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
+      id: 'adaptation-cached',
+      title: 'História em cache',
+    } as never);
+
+    await buildService().generateOrReuse({
+      userId: 'user-a',
+      tier: 'free',
+      payload: { ...payload, verseFrom: 1, verseTo: 10 },
+    });
+
+    const createArgs = vi.mocked(prisma.passage.create).mock.calls[0]?.[0] as {
+      data: { reference: string; sourceText: { reference: string } };
+    };
+    expect(createArgs.data.reference).toBe('Mateus 2');
+    expect(createArgs.data.sourceText.reference).toBe('Mateus 2');
+  });
+
+  it('wraps unexpected LLM content-shape failures in a friendly LlmValidationError', async () => {
+    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue(null);
+    vi.mocked(planLimits.assertCanGenerate).mockResolvedValue(undefined);
+    vi.mocked(llm.generateStory).mockResolvedValue({ title: 'x', content: { pages: [] } } as never);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const error = await buildService()
+      .generateOrReuse({ userId: 'user-a', tier: 'free', payload })
+      .catch((e: unknown) => e as Error);
+
+    expect((error as Error).message).toBe(FRIENDLY_GENERATION_ERROR);
+    errorSpy.mockRestore();
   });
 });
