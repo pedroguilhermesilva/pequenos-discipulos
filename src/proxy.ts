@@ -23,12 +23,13 @@ export async function proxy(request: NextRequest) {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
   if (isPublicPath(pathname)) {
-    if (pathname === '/login') {
+    if (pathname === '/' || pathname === '/login') {
       const session = await auth();
       if (session?.user) {
-        const callbackUrl = sanitizeCallbackPath(
-          request.nextUrl.searchParams.get('callbackUrl')
-        );
+        const callbackUrl =
+          pathname === '/'
+            ? '/home'
+            : sanitizeCallbackPath(request.nextUrl.searchParams.get('callbackUrl'));
         const user = await prisma.user.findUnique({
           where: { id: session.user.id },
           select: { consentAcceptedAt: true, consentVersion: true },

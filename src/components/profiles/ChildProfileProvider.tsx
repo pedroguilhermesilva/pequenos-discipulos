@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { UserPreferences } from '@/lib/onboarding/types';
 import {
@@ -30,6 +31,10 @@ import {
 } from '@/lib/profiles/actions';
 import { parsePreferences } from '@/lib/onboarding/storage';
 import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
+import {
+  isProfileRoutingReady,
+  shouldTreatProfilesAsUnknown,
+} from '@/lib/profiles/profile-guard-logic';
 import type { ChildProfile, ProfileAvatarColorId } from '@/lib/profiles/types';
 
 export type RemoveProfileResult =
@@ -40,7 +45,7 @@ interface ChildProfileContextValue {
   profiles: ChildProfile[];
   activeProfile: ChildProfile | null;
   isReady: boolean;
-  refresh: () => void;
+  refresh: () => Promise<void>;
   selectProfile: (profileId: string) => Promise<ChildProfile | null>;
   createProfile: (preferences: UserPreferences) => ChildProfile;
   updateActivePreferences: (preferences: UserPreferences) => void;
@@ -87,42 +92,80 @@ function resolveActiveProfile(
 export function ChildProfileProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: session, status: sessionStatus } = useSession();
   const [profiles, setProfiles] = useState<ChildProfile[]>([]);
   const [activeProfile, setActiveProfile] = useState<ChildProfile | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
+
+  const isAuthenticated = sessionStatus === 'authenticated';
+  const isReady = isProfileRoutingReady(sessionStatus, profilesLoaded);
 
   const syncProfiles = useCallback((mapped: ChildProfile[], activeProfileId: string | null) => {
     const active = resolveActiveProfile(mapped, activeProfileId);
     setProfiles(mapped);
     setActiveProfile(active);
     replaceProfilesState(mapped, active?.id ?? null);
-    setIsReady(true);
+    setProfilesLoaded(true);
     return active;
   }, []);
 
-  const refreshLocal = useCallback(() => {
-    const state = loadProfilesState();
-    setProfiles(state.profiles);
-    setActiveProfile(getActiveProfile());
-    setIsReady(true);
-  }, []);
-
-  const refresh = useCallback(async () => {
+  const loadFromServer = useCallback(async () => {
     const result = await listChildProfilesAction();
-    if (result.ok && result.data.length > 0) {
+
+    if (result.ok) {
       const mapped = result.data.map(mapDbProfile);
       const activeResult = await getActiveChildProfileIdAction();
       const activeProfileId = activeResult.ok ? activeResult.data.profileId : null;
       syncProfiles(mapped, activeProfileId);
       return;
     }
-    refreshLocal();
-  }, [refreshLocal, syncProfiles]);
+
+    if (shouldTreatProfilesAsUnknown(result.ok, result.code)) {
+      setProfiles([]);
+      setActiveProfile(null);
+      setProfilesLoaded(false);
+      return;
+    }
+
+    const state = loadProfilesState();
+    if (state.profiles.length > 0) {
+      setProfiles(state.profiles);
+      setActiveProfile(getActiveProfile());
+      setProfilesLoaded(true);
+      return;
+    }
+
+    setProfiles([]);
+    setActiveProfile(null);
+    setProfilesLoaded(true);
+  }, [syncProfiles]);
+
+  const refresh = useCallback(async () => {
+    if (!isAuthenticated) {
+      setProfiles([]);
+      setActiveProfile(null);
+      setProfilesLoaded(false);
+      return;
+    }
+
+    setProfilesLoaded(false);
+    await loadFromServer();
+  }, [isAuthenticated, loadFromServer]);
 
   useEffect(() => {
-    let cancelled = false;
+    if (sessionStatus === 'loading') return;
 
-    async function boot() {
+    if (!isAuthenticated) {
+      setProfiles([]);
+      setActiveProfile(null);
+      setProfilesLoaded(false);
+      return;
+    }
+
+    let cancelled = false;
+    setProfilesLoaded(false);
+
+    async function bootForUser() {
       const local = loadProfilesState();
       if (local.profiles.length > 0) {
         await migrateLocalProfilesAction(
@@ -137,14 +180,15 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
       }
 
       if (cancelled) return;
-      await refresh();
+      await loadFromServer();
     }
 
-    void boot();
+    void bootForUser();
+
     return () => {
       cancelled = true;
     };
-  }, [refresh]);
+  }, [session?.user?.id, sessionStatus, isAuthenticated, loadFromServer]);
 
   const selectProfile = useCallback(
     async (profileId: string) => {
@@ -250,9 +294,7 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
       profiles,
       activeProfile,
       isReady,
-      refresh: () => {
-        void refresh();
-      },
+      refresh,
       selectProfile,
       createProfile,
       updateActivePreferences,

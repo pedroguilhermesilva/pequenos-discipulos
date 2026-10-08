@@ -10,6 +10,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { preferredFormats, usageFrequencies } from '@/lib/onboarding/constants';
 import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
 import { mergePreferences } from '@/lib/onboarding/storage';
+import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 import { createChildProfileAction, setActiveChildProfile } from '@/lib/profiles/actions';
 import { clearOnboardingDraft, loadOnboardingDraft } from '@/lib/profiles/storage';
 import { isNewProfileMode } from '@/lib/onboarding/routing';
@@ -17,6 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 export function OnboardingStep3Content() {
   const router = useRouter();
+  const { refresh } = useChildProfiles();
   const searchParams = useSearchParams();
   const isNewProfile = isNewProfileMode(searchParams);
   const [selectedFormat, setSelectedFormat] = useState(DEFAULT_PREFERENCES.preferredFormat);
@@ -52,6 +54,7 @@ export function OnboardingStep3Content() {
     }
 
     clearOnboardingDraft();
+    await refresh();
     router.push('/home');
   };
 

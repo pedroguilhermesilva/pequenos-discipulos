@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import { ensureOnboardingAccess } from '@/lib/onboarding/guard';
 import { OnboardingStep3Content } from './OnboardingStep3Content';
 
 function OnboardingStep3Loading() {
@@ -9,7 +10,13 @@ function OnboardingStep3Loading() {
   );
 }
 
-export default function OnboardingStep3Page() {
+export default async function OnboardingStep3Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ modo?: string | string[] }>;
+}) {
+  await ensureOnboardingAccess(await searchParams);
+
   return (
     <Suspense fallback={<OnboardingStep3Loading />}>
       <OnboardingStep3Content />

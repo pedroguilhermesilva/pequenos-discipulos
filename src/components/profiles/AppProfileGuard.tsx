@@ -3,6 +3,10 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
+import {
+  shouldRedirectToOnboarding,
+  shouldRedirectToProfilePicker,
+} from '@/lib/profiles/profile-guard-logic';
 
 const EXEMPT_PATHS = ['/perfis', '/onboarding', '/ajuda'];
 
@@ -18,12 +22,18 @@ export function AppProfileGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isReady || isExempt) return;
 
-    if (profiles.length === 0) {
+    if (shouldRedirectToOnboarding({ isReady, profilesCount: profiles.length })) {
       router.replace('/onboarding/step-1');
       return;
     }
 
-    if (!activeProfile) {
+    if (
+      shouldRedirectToProfilePicker({
+        isReady,
+        profilesCount: profiles.length,
+        hasActiveProfile: Boolean(activeProfile),
+      })
+    ) {
       router.replace('/perfis');
     }
   }, [isReady, isExempt, profiles.length, activeProfile, router]);
@@ -41,7 +51,11 @@ export function AppProfileGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isExempt && profiles.length > 0 && !activeProfile) {
+  if (
+    !isExempt &&
+    profiles.length > 0 &&
+    !activeProfile
+  ) {
     return null;
   }
 

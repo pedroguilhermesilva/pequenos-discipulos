@@ -4,13 +4,14 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProfilePicker } from '@/components/profiles/ProfilePicker';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
+import { shouldRedirectToOnboarding } from '@/lib/profiles/profile-guard-logic';
 
 function PerfisContent() {
   const router = useRouter();
   const { profiles, isReady } = useChildProfiles();
 
   useEffect(() => {
-    if (isReady && profiles.length === 0) {
+    if (shouldRedirectToOnboarding({ isReady, profilesCount: profiles.length })) {
       router.replace('/onboarding/step-1');
     }
   }, [isReady, profiles.length, router]);
