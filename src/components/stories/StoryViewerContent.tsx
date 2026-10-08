@@ -33,6 +33,7 @@ import {
   getShareButtonState,
   getShareSubmitFeedback,
 } from '@/lib/moderation/status-labels';
+import { notify } from '@/lib/notify';
 interface StoryViewerContentProps {
   story: StorySummary;
   passage: BiblePassage;
@@ -321,24 +322,38 @@ export function StoryViewerContent({
       if (json.ok && json.data?.voteScore) {
         setRating(json.data.voteScore);
       }
-      if (action === 'family_approve') {
+      if (action === 'family_approve' && json.ok) {
         setSaved(true);
+        notify.success('História aprovada pela família.');
+      } else if (action === 'family_approve' && !json.ok) {
+        notify.error(json.message ?? 'Não foi possível aprovar. Tente de novo.');
       }
+
+      if (action === 'vote' && json.ok) {
+        notify.success('Voto registrado. Obrigado!');
+      } else if (action === 'vote' && !json.ok) {
+        notify.error(json.message ?? 'Não foi possível registrar o voto. Tente de novo.');
+      }
+
       if (action === 'share_community' && json.ok && json.data?.status) {
-        setShareStatus(json.data.status);
-        setShareFeedback(getShareSubmitFeedback(json.data.status, json.data.reason));
+        const status = json.data.status;
+        setShareStatus(status);
+        setShareFeedback(getShareSubmitFeedback(status, json.data.reason));
+        if (status === 'pending_review' || status === 'pending_manual_review') {
+          notify.success('História enviada para revisão.');
+        } else if (status === 'community' || status === 'as_default') {
+          notify.success('Sua versão foi aprovada na comunidade!');
+        }
       } else if (action === 'share_community' && !json.ok) {
-        setShareFeedback({
-          variant: 'error',
-          message: json.message ?? 'Não foi possível enviar para a comunidade. Tente de novo.',
-        });
+        notify.error(json.message ?? 'Não foi possível enviar para a comunidade. Tente de novo.');
       }
     } catch {
       if (parentAction === 'share') {
-        setShareFeedback({
-          variant: 'error',
-          message: 'Falha de rede ao compartilhar. Verifique a conexão e tente de novo.',
-        });
+        notify.error('Falha de rede ao compartilhar. Verifique a conexão e tente de novo.');
+      } else if (parentAction === 'vote') {
+        notify.error();
+      } else if (parentAction === 'approve') {
+        notify.error();
       }
     } finally {
       if (action === 'share_community') {
@@ -535,7 +550,8 @@ export function StoryViewerContent({
             </div>
             {shareFeedback ? (
               <div
-                role="alert"
+                role="status"
+                aria-live="polite"
                 className={cn(
                   'mx-5 mb-4 mt-1 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm font-medium',
                   shareFeedback.variant === 'error' &&

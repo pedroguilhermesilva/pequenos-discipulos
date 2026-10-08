@@ -26,6 +26,8 @@ import {
   usageFrequencies,
 } from '@/lib/onboarding/constants';
 import { MAX_CHILD_PROFILES } from '@/lib/profiles/constants';
+import { PROFILE_SWITCH_ERROR } from '@/lib/profiles/profile-picker-messages';
+import { notify } from '@/lib/notify';
 import { getProfileDisplayName } from '@/lib/profiles/normalize';
 import type { ChildProfile } from '@/lib/profiles/types';
 import type { ThemeId, UserPreferences } from '@/lib/onboarding/types';
@@ -469,6 +471,15 @@ export function ProfilePreferencesAccordion({
     setOpenProfileId((current) => (current === profileId ? null : profileId));
   };
 
+  const handleSelectProfile = async (profileId: string) => {
+    const selected = await selectProfile(profileId);
+    if (selected) {
+      notify.success(`Perfil de ${selected.name} selecionado.`);
+      return;
+    }
+    notify.error(PROFILE_SWITCH_ERROR);
+  };
+
   const handleAddClick = () => {
     setPendingAction('add');
     setParentGateOpen(true);
@@ -547,7 +558,7 @@ export function ProfilePreferencesAccordion({
               isDemo={isDemo}
               canDelete={canDelete}
               onToggle={() => handleToggle(profile.id)}
-              onSelect={() => selectProfile(profile.id)}
+              onSelect={() => void handleSelectProfile(profile.id)}
               onDelete={() => handleDeleteClick(profile.id)}
               onSaved={onSaved}
               onError={onError}

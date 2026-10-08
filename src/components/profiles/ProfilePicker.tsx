@@ -13,6 +13,7 @@ import {
 } from '@/lib/profiles/profile-picker-messages';
 import { ChildProfileAvatar } from '@/components/profiles/ChildProfileAvatar';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
+import { notify } from '@/lib/notify';
 
 interface ProfilePickerProps {
   redirectTo?: string;
@@ -33,7 +34,6 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
   const { profiles, activeProfile, selectProfile } = useChildProfiles();
   const [parentGateOpen, setParentGateOpen] = useState(false);
   const [selectingProfileId, setSelectingProfileId] = useState<string | null>(null);
-  const [selectError, setSelectError] = useState<string | null>(null);
   const canAddProfile = profiles.length < MAX_CHILD_PROFILES;
   const canDismiss = Boolean(activeProfile);
   const isSwitching = selectingProfileId !== null;
@@ -41,20 +41,20 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
   const handleSelect = async (profileId: string) => {
     if (isSwitching) return;
 
-    setSelectError(null);
     setSelectingProfileId(profileId);
 
     try {
       const selected = await selectProfile(profileId);
       if (!selected) {
-        setSelectError(PROFILE_SWITCH_ERROR);
+        notify.error(PROFILE_SWITCH_ERROR);
         setSelectingProfileId(null);
         return;
       }
 
+      notify.success(`Perfil de ${selected.name} selecionado.`);
       router.push(redirectTo);
     } catch {
-      setSelectError(PROFILE_SWITCH_ERROR);
+      notify.error(PROFILE_SWITCH_ERROR);
       setSelectingProfileId(null);
     }
   };
@@ -105,15 +105,6 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
             Cada filho tem histórias e preferências adaptadas à idade dele.
           </p>
         </div>
-
-        {selectError && (
-          <div
-            role="alert"
-            className="mb-6 w-full max-w-md rounded-livro border border-laranja/30 bg-laranja/10 px-4 py-3 text-sm font-medium text-tinta text-center"
-          >
-            {selectError}
-          </div>
-        )}
 
         <div
           className={cn(

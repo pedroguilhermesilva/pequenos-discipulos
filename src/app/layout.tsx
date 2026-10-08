@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, DM_Sans } from "next/font/google";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
+import { ToasterProvider } from "@/components/providers/ToasterProvider";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -36,7 +37,10 @@ export default function RootLayout({
       </head>
       <body className={`${fraunces.variable} ${dmSans.variable}`}>
         <SessionProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            {children}
+            <ToasterProvider />
+          </QueryProvider>
         </SessionProvider>
       </body>
     </html>
