@@ -15,6 +15,64 @@ export function getAdaptationStatusLabel(status: AdaptationStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
 
+export type ShareButtonState = {
+  disabled: boolean;
+  label: string;
+};
+
+export function getShareButtonState(status: AdaptationStatus | string | null): ShareButtonState {
+  switch (status) {
+    case 'community':
+    case 'as_default':
+      return { disabled: true, label: 'Já está na comunidade' };
+    case 'pending_review':
+    case 'pending_manual_review':
+      return { disabled: true, label: 'Aguardando revisão' };
+    case 'rejected':
+      return { disabled: false, label: 'Tentar compartilhar de novo' };
+    case 'withdrawn':
+      return { disabled: false, label: 'Compartilhar com a comunidade' };
+    default:
+      return { disabled: false, label: 'Compartilhar com a comunidade' };
+  }
+}
+
+export function getShareSubmitFeedback(
+  status: AdaptationStatus | string,
+  reason?: string | null
+): { message: string; variant: 'success' | 'info' | 'error' } {
+  switch (status) {
+    case 'community':
+    case 'as_default':
+      return {
+        variant: 'success',
+        message: 'Parabéns! Sua versão foi aprovada e já está na comunidade.',
+      };
+    case 'pending_manual_review':
+      return {
+        variant: 'info',
+        message: 'Vai para revisão manual. Nossa equipe vai analisar em breve.',
+      };
+    case 'rejected':
+      return {
+        variant: 'error',
+        message:
+          reason ??
+          'Essa versão não pôde entrar na comunidade. Tente adaptar a história de outro jeito.',
+      };
+    case 'pending_review':
+      return {
+        variant: 'info',
+        message: 'Enviada para revisão. Em breve você saberá o resultado.',
+      };
+    default:
+      return {
+        variant: 'info',
+        message: 'Enviada para revisão.',
+      };
+  }
+}
+
 export function getFamilyModerationMessage(
   status: AdaptationStatus,
   moderationReason?: string | null

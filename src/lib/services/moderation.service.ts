@@ -3,7 +3,13 @@ import { AdaptationNotFound, DomainError } from '@/lib/domain/errors';
 import { fromPrismaAgeTier } from '@/lib/domain/mappers';
 import type { AdaptationContent } from '@/lib/domain/schemas';
 import type { StoryReviewVerdict } from '@/lib/llm/story-moderation.prompt';
-import { COMMUNITY_REPORT_THRESHOLD } from '@/lib/moderation/constants';
+import {
+  COMMUNITY_REPORT_THRESHOLD,
+  MODERATION_UNAVAILABLE_REASON,
+  REVIEW_UNAVAILABLE_REASON,
+  UNEXPECTED_REVIEW_ERROR_REASON,
+} from '@/lib/moderation/constants';
+import { canSubmitForCommunityReview } from '@/lib/moderation/submission';
 import type { AdaptationRepository } from '@/lib/repositories/interfaces/adaptation.repository';
 import type { ModerationRepository } from '@/lib/repositories/interfaces/moderation.repository';
 import type { ContentModerationProvider } from '@/lib/providers/interfaces/content-moderation.provider';
@@ -41,12 +47,7 @@ export class ModerationService {
     const adaptation = await this.adaptations.findById(adaptationId);
     if (!adaptation) throw new AdaptationNotFound();
 
-    if (
-      adaptation.status !== 'draft' &&
-      adaptation.status !== 'family_approved' &&
-      adaptation.status !== 'rejected' &&
-      adaptation.status !== 'withdrawn'
-    ) {
+    if (!canSubmitForCommunityReview(adaptation)) {
       throw new DomainError(
         'VALIDATION_ERROR',
         'Esta versão não pode ser enviada para revisão agora.'
@@ -58,22 +59,19 @@ export class ModerationService {
       moderationReason: null,
     });
 
-    const outcome = await this.runAutomaticReview(adaptationId);
-
-    await this.moderation.createAuditLog({
-      adaptationId,
-      action:
-        outcome.verdict === 'approved'
-          ? 'auto_approved'
-          : outcome.verdict === 'rejected' || outcome.verdict === 'content_flagged'
-            ? 'auto_rejected'
-            : 'auto_manual_review',
-      actorType: 'system',
-      actorId: null,
-      reason: outcome.reason,
-    });
-
-    return outcome;
+    try {
+      const outcome = await this.runAutomaticReview(adaptationId);
+      await this.recordAutomaticReviewAudit(adaptationId, outcome);
+      return outcome;
+    } catch (error) {
+      console.error('[ModerationService] submitForCommunityReview failed', error);
+      const outcome = await this.fallbackToManualReview(
+        adaptationId,
+        UNEXPECTED_REVIEW_ERROR_REASON
+      );
+      await this.recordAutomaticReviewAudit(adaptationId, outcome);
+      return outcome;
+    }
   }
 
   async runAutomaticReview(adaptationId: string): Promise<ModerationOutcome> {
@@ -85,7 +83,14 @@ export class ModerationService {
     const reference = adaptation.passage.reference;
     const ageTier = fromPrismaAgeTier(adaptation.ageTier);
 
-    const moderation = await this.contentModeration.moderate(storyText);
+    let moderation;
+    try {
+      moderation = await this.contentModeration.moderate(storyText);
+    } catch (error) {
+      console.error('[ModerationService] content moderation failed', error);
+      return this.fallbackToManualReview(adaptationId, MODERATION_UNAVAILABLE_REASON);
+    }
+
     if (moderation.flagged) {
       const reason = rejectionReasonForAgeTier(adaptation.ageTier);
       await this.moderation.updateModerationState(adaptationId, {
@@ -96,7 +101,13 @@ export class ModerationService {
       return { status: 'rejected', reason, verdict: 'content_flagged' };
     }
 
-    const review = await this.storyReview.review({ reference, ageTier, storyText });
+    let review;
+    try {
+      review = await this.storyReview.review({ reference, ageTier, storyText });
+    } catch (error) {
+      console.error('[ModerationService] LLM story review failed', error);
+      return this.fallbackToManualReview(adaptationId, REVIEW_UNAVAILABLE_REASON);
+    }
 
     let status: AdaptationStatus;
     let reason: string | null = review.reason;
@@ -164,6 +175,33 @@ export class ModerationService {
     }
 
     return { reportCount, withdrawn: false };
+  }
+
+  private async fallbackToManualReview(
+    adaptationId: string,
+    reason: string
+  ): Promise<ModerationOutcome> {
+    await this.moderation.updateModerationState(adaptationId, {
+      status: 'pending_manual_review',
+      moderationReason: reason,
+      moderatedAt: new Date(),
+    });
+    return { status: 'pending_manual_review', reason, verdict: 'manual_review' };
+  }
+
+  private async recordAutomaticReviewAudit(adaptationId: string, outcome: ModerationOutcome) {
+    await this.moderation.createAuditLog({
+      adaptationId,
+      action:
+        outcome.verdict === 'approved'
+          ? 'auto_approved'
+          : outcome.verdict === 'rejected' || outcome.verdict === 'content_flagged'
+            ? 'auto_rejected'
+            : 'auto_manual_review',
+      actorType: 'system',
+      actorId: null,
+      reason: outcome.reason,
+    });
   }
 
   private async applyAdminDecision(

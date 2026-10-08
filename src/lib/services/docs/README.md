@@ -114,8 +114,10 @@ Revisão antes de uma versão entrar na comunidade (issue #12).
 
 **Checagem automática (1 chamada LLM + moderação OpenAI por partilha):**
 
-1. Moderação de conteúdo (`OpenAiModerationProvider`, mesma `LLM_API_KEY`).
+1. Moderação de conteúdo (`OpenAiModerationProvider` — `OPENAI_MODERATION_API_KEY` ou fallback `LLM_API_KEY`).
 2. Revisão LLM de fidelidade bíblica + adequação à idade (`ChatCompletionsStoryReviewProvider`).
+
+Se a moderação OpenAI ou a revisão LLM falharem (403, rede, timeout), a versão vai para `pending_manual_review` com registo em `ModerationAuditLog` — **nunca** fica presa em `pending_review` nem devolve 500. Versões em `pending_review` há mais de 3 minutos sem `moderatedAt` podem ser reenviadas.
 
 **Denúncias:** `POST /api/reports` — após `COMMUNITY_REPORT_THRESHOLD` (default 3), status `withdrawn`.
 
@@ -133,6 +135,7 @@ Revisão antes de uma versão entrar na comunidade (issue #12).
 | `AUTH_SECRET` / `AUTH_URL` | NextAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth opcional |
 | `LLM_*` | Geração de histórias + revisão automática na partilha |
+| `OPENAI_MODERATION_API_KEY` / `OPENAI_MODERATION_BASE_URL` | Moderação OpenAI na partilha (opcional; fallback `LLM_*`) |
 | `GOOGLE_TTS_*` / `TTS_USE_STUB` | Narração TTS (Google) |
 | `NARRATION_ALIGNER` / `GROQ_API_KEY` | Alinhamento palavra a palavra pós-Gemini |
 | `ELEVENLABS_*` | SFX (ElevenLabs, até #5) |

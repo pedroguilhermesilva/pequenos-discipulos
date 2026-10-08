@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdaptationNotFound, DomainError } from '@/lib/domain/errors';
+import {
+  MODERATION_UNAVAILABLE_REASON,
+  REVIEW_UNAVAILABLE_REASON,
+  STUCK_PENDING_REVIEW_MS,
+  UNEXPECTED_REVIEW_ERROR_REASON,
+} from '@/lib/moderation/constants';
 import { ModerationService } from '@/lib/services/moderation.service';
 import type { AdaptationContent } from '@/lib/domain/schemas';
 
@@ -43,9 +49,15 @@ describe('ModerationService', () => {
       ageTier: 'TIER_3_5',
       content: sampleContent,
       passage: { reference: 'Mateus 27:32-56', slug: 'mateus-27' },
+      moderatedAt: null,
+      updatedAt: new Date(),
       ...overrides,
     };
   }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   describe('submitForCommunityReview', () => {
     it('auto-approves when content moderation and LLM review pass', async () => {
@@ -116,6 +128,99 @@ describe('ModerationService', () => {
       await expect(
         buildService().submitForCommunityReview('adapt-1', 'user-a')
       ).rejects.toBeInstanceOf(DomainError);
+    });
+
+    it('falls back to manual review when content moderation fails', async () => {
+      vi.mocked(adaptations.findById).mockResolvedValue(mockAdaptation() as never);
+      vi.mocked(contentModeration.moderate).mockRejectedValue(
+        new Error('Moderação de conteúdo falhou (403)')
+      );
+      vi.mocked(moderation.updateModerationState).mockResolvedValue({ id: 'adapt-1' } as never);
+
+      const outcome = await buildService().submitForCommunityReview('adapt-1', 'user-a');
+
+      expect(outcome.status).toBe('pending_manual_review');
+      expect(outcome.reason).toBe(MODERATION_UNAVAILABLE_REASON);
+      expect(storyReview.review).not.toHaveBeenCalled();
+      expect(moderation.updateModerationState).toHaveBeenLastCalledWith('adapt-1', {
+        status: 'pending_manual_review',
+        moderationReason: MODERATION_UNAVAILABLE_REASON,
+        moderatedAt: expect.any(Date),
+      });
+      expect(moderation.createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auto_manual_review',
+          reason: MODERATION_UNAVAILABLE_REASON,
+        })
+      );
+    });
+
+    it('falls back to manual review when LLM review fails', async () => {
+      vi.mocked(adaptations.findById).mockResolvedValue(mockAdaptation() as never);
+      vi.mocked(contentModeration.moderate).mockResolvedValue({ flagged: false, categories: [] });
+      vi.mocked(storyReview.review).mockRejectedValue(new Error('LLM timeout'));
+      vi.mocked(moderation.updateModerationState).mockResolvedValue({ id: 'adapt-1' } as never);
+
+      const outcome = await buildService().submitForCommunityReview('adapt-1', 'user-a');
+
+      expect(outcome.status).toBe('pending_manual_review');
+      expect(outcome.reason).toBe(REVIEW_UNAVAILABLE_REASON);
+      expect(moderation.createAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'auto_manual_review',
+          reason: REVIEW_UNAVAILABLE_REASON,
+        })
+      );
+    });
+
+    it('falls back to manual review on unexpected errors without leaving pending_review', async () => {
+      vi.mocked(adaptations.findById).mockResolvedValue(mockAdaptation() as never);
+      vi.mocked(contentModeration.moderate).mockResolvedValue({ flagged: false, categories: [] });
+      vi.mocked(storyReview.review).mockResolvedValue({
+        verdict: 'approved',
+        reason: 'Ok.',
+        biblicalFidelityOk: true,
+        ageAppropriateOk: true,
+      });
+      vi.mocked(moderation.updateModerationState)
+        .mockResolvedValueOnce({ id: 'adapt-1' } as never)
+        .mockRejectedValueOnce(new Error('database write failed'));
+
+      const outcome = await buildService().submitForCommunityReview('adapt-1', 'user-a');
+
+      expect(outcome.status).toBe('pending_manual_review');
+      expect(outcome.reason).toBe(UNEXPECTED_REVIEW_ERROR_REASON);
+      expect(moderation.updateModerationState).toHaveBeenLastCalledWith('adapt-1', {
+        status: 'pending_manual_review',
+        moderationReason: UNEXPECTED_REVIEW_ERROR_REASON,
+        moderatedAt: expect.any(Date),
+      });
+    });
+
+    it('allows re-submit for stuck pending_review', async () => {
+      vi.useFakeTimers();
+      const now = new Date('2026-01-01T12:00:00Z');
+      vi.setSystemTime(now);
+
+      vi.mocked(adaptations.findById).mockResolvedValue(
+        mockAdaptation({
+          status: 'pending_review',
+          moderatedAt: null,
+          updatedAt: new Date(now.getTime() - STUCK_PENDING_REVIEW_MS - 60_000),
+        }) as never
+      );
+      vi.mocked(contentModeration.moderate).mockResolvedValue({ flagged: false, categories: [] });
+      vi.mocked(storyReview.review).mockResolvedValue({
+        verdict: 'approved',
+        reason: 'Ok.',
+        biblicalFidelityOk: true,
+        ageAppropriateOk: true,
+      });
+      vi.mocked(moderation.updateModerationState).mockResolvedValue({ id: 'adapt-1' } as never);
+
+      const outcome = await buildService().submitForCommunityReview('adapt-1', 'user-a');
+
+      expect(outcome.status).toBe('community');
     });
   });
 

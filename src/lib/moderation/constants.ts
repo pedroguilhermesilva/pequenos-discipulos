@@ -14,3 +14,19 @@ export const MANUAL_REVIEW_STATUSES: AdaptationStatus[] = ['pending_manual_revie
 
 /** Statuses where automatic moderation is in progress. */
 export const AUTO_REVIEW_STATUSES: AdaptationStatus[] = ['pending_review'];
+
+/** Statuses from which a family may start (or retry) community submission. */
+export const SUBMITTABLE_STATUSES: AdaptationStatus[] = [
+  'draft',
+  'family_approved',
+  'rejected',
+  'withdrawn',
+];
+
+/** pending_review without moderatedAt for longer than this may be re-submitted. */
+export const STUCK_PENDING_REVIEW_MS = 3 * 60 * 1000;
+
+export const MODERATION_UNAVAILABLE_REASON = 'Moderação automática indisponível.';
+export const REVIEW_UNAVAILABLE_REASON = 'Revisão automática indisponível.';
+export const UNEXPECTED_REVIEW_ERROR_REASON =
+  'Erro inesperado na revisão automática. Revisão manual necessária.';

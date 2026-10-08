@@ -29,6 +29,10 @@ import { StoryAgeContent } from '@/components/stories/StoryAgeContent';
 import { StoryCollectionsSidebar } from '@/components/stories/StoryCollectionsSidebar';
 import { StoryQuizSection } from '@/components/stories/StoryQuizSection';
 import type { StoryAudioPlayRequest } from '@/lib/stories/audio-play';
+import {
+  getShareButtonState,
+  getShareSubmitFeedback,
+} from '@/lib/moderation/status-labels';
 interface StoryViewerContentProps {
   story: StorySummary;
   passage: BiblePassage;
@@ -65,7 +69,11 @@ export function StoryViewerContent({
   const [parentAction, setParentAction] = useState<'vote' | 'share' | 'approve' | null>(null);
   const [saved, setSaved] = useState(false);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
-  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [shareFeedback, setShareFeedback] = useState<{
+    message: string;
+    variant: 'success' | 'info' | 'error';
+  } | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
   const [rating, setRating] = useState(4.9);
   const [audioToast, setAudioToast] = useState({
     visible: false,
@@ -261,7 +269,17 @@ export function StoryViewerContent({
       .then((json: { ok: boolean; data?: { status: string; message?: string | null } }) => {
         if (json.ok && json.data) {
           setShareStatus(json.data.status);
-          if (json.data.message) setShareMessage(json.data.message);
+          if (json.data.message) {
+            setShareFeedback({
+              message: json.data.message,
+              variant:
+                json.data.status === 'rejected'
+                  ? 'error'
+                  : json.data.status === 'community'
+                    ? 'success'
+                    : 'info',
+            });
+          }
         }
       })
       .catch(() => undefined);
@@ -279,6 +297,11 @@ export function StoryViewerContent({
         : parentAction === 'share'
           ? 'share_community'
           : 'vote';
+
+    if (action === 'share_community') {
+      setIsSharing(true);
+      setShareFeedback(null);
+    }
 
     try {
       const response = await fetch('/api/votes', {
@@ -301,26 +324,25 @@ export function StoryViewerContent({
       if (action === 'family_approve') {
         setSaved(true);
       }
-      if (action === 'share_community' && json.ok && json.data) {
-        setShareStatus(json.data.status ?? null);
-        if (json.data.status === 'community') {
-          setShareMessage('Parabéns! Sua versão foi aprovada e já está na comunidade.');
-        } else if (json.data.status === 'rejected') {
-          setShareMessage(
-            json.data.reason ??
-              'Essa versão não pôde entrar na comunidade. Tente adaptar de outro jeito.'
-          );
-        } else if (json.data.status === 'pending_manual_review') {
-          setShareMessage('Sua versão está em revisão manual. Avisaremos quando houver decisão.');
-        } else {
-          setShareMessage('Sua versão está em revisão. Em breve você saberá o resultado.');
-        }
+      if (action === 'share_community' && json.ok && json.data?.status) {
+        setShareStatus(json.data.status);
+        setShareFeedback(getShareSubmitFeedback(json.data.status, json.data.reason));
       } else if (action === 'share_community' && !json.ok) {
-        setShareMessage(json.message ?? 'Não foi possível enviar para a comunidade.');
+        setShareFeedback({
+          variant: 'error',
+          message: json.message ?? 'Não foi possível enviar para a comunidade. Tente de novo.',
+        });
       }
     } catch {
       if (parentAction === 'share') {
-        setShareMessage('Falha de rede ao compartilhar.');
+        setShareFeedback({
+          variant: 'error',
+          message: 'Falha de rede ao compartilhar. Verifique a conexão e tente de novo.',
+        });
+      }
+    } finally {
+      if (action === 'share_community') {
+        setIsSharing(false);
       }
     }
 
@@ -493,15 +515,13 @@ export function StoryViewerContent({
                 <button
                   type="button"
                   onClick={() => openParentGate('share')}
-                  disabled={shareStatus === 'community' || shareStatus === 'pending_review'}
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-ceu bg-ceu-claro hover:bg-ceu-claro/80 border border-ceu/20 px-3 py-2.5 rounded-xl transition disabled:opacity-50"
+                  disabled={getShareButtonState(shareStatus).disabled || isSharing}
+                  className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-ceu bg-ceu-claro hover:bg-ceu-claro/80 border border-ceu/20 px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="material-symbols-outlined text-base">groups</span>
-                  {shareStatus === 'community'
-                    ? 'Na comunidade'
-                    : shareStatus === 'pending_review' || shareStatus === 'pending_manual_review'
-                      ? 'Em revisão'
-                      : 'Compartilhar com a comunidade'}
+                  <span className="material-symbols-outlined text-base">
+                    {isSharing ? 'hourglass_top' : 'groups'}
+                  </span>
+                  {isSharing ? 'Enviando…' : getShareButtonState(shareStatus).label}
                 </button>
                 <button
                   type="button"
@@ -513,10 +533,28 @@ export function StoryViewerContent({
                 </button>
               </div>
             </div>
-            {shareMessage ? (
-              <p className="px-5 pb-4 text-xs text-oliva bg-pergaminho-escuro/40 border-t border-borda">
-                {shareMessage}
-              </p>
+            {shareFeedback ? (
+              <div
+                role="alert"
+                className={cn(
+                  'mx-5 mb-4 mt-1 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm font-medium',
+                  shareFeedback.variant === 'error' &&
+                    'border-red-200 bg-red-50 text-red-800',
+                  shareFeedback.variant === 'success' &&
+                    'border-aprovado/30 bg-aprovado-claro text-aprovado',
+                  shareFeedback.variant === 'info' &&
+                    'border-ceu/30 bg-ceu-claro text-tinta'
+                )}
+              >
+                <span className="material-symbols-outlined shrink-0 text-lg">
+                  {shareFeedback.variant === 'error'
+                    ? 'error'
+                    : shareFeedback.variant === 'success'
+                      ? 'check_circle'
+                      : 'info'}
+                </span>
+                <p>{shareFeedback.message}</p>
+              </div>
             ) : null}
           </div>
 

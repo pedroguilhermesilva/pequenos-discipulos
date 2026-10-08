@@ -45,9 +45,17 @@ const llmBaseUrl = process.env.LLM_BASE_URL?.trim() || 'https://api.openai.com/v
 const llmModel = process.env.LLM_MODEL?.trim() || 'gpt-4o-mini';
 const useLlmStub = process.env.LLM_USE_STUB === 'true' || !llmKey;
 
+const moderationApiKey =
+  process.env.OPENAI_MODERATION_API_KEY?.trim() || llmKey;
+const moderationBaseUrl =
+  process.env.OPENAI_MODERATION_BASE_URL?.trim() || llmBaseUrl;
+
 const contentModerationProvider = useLlmStub
   ? new StubContentModerationProvider()
-  : new OpenAiModerationProvider({ apiKey: llmKey, baseUrl: llmBaseUrl });
+  : new OpenAiModerationProvider({
+      apiKey: moderationApiKey,
+      baseUrl: moderationBaseUrl,
+    });
 
 const storyReviewProvider = useLlmStub
   ? new StubStoryReviewProvider()
