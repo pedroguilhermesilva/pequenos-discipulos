@@ -9,7 +9,9 @@ import {
   adaptationContentSchema,
   generateStoryInputSchema,
   storyQuizSchema,
+  type AdaptationContent,
   type GenerateStoryInput,
+  type StoryQuizData,
 } from '@/lib/domain/schemas';
 import type { LlmProvider } from '@/lib/providers/interfaces/llm.provider';
 import type { AdaptationRepository } from '@/lib/repositories/interfaces/adaptation.repository';
@@ -35,7 +37,15 @@ export type GenerateStoryResult = {
   adaptationId: string;
   userStoryId: string;
   title: string;
+  content: AdaptationContent;
+  quiz?: StoryQuizData;
+  adaptationNote?: string | null;
 };
+
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
+const IDEMPOTENCY_PENDING_TITLE = '__pending__';
+const IDEMPOTENCY_WAIT_MS = 120_000;
+const IDEMPOTENCY_POLL_MS = 250;
 
 export class StoryGenerationService {
   constructor(
@@ -56,6 +66,50 @@ export class StoryGenerationService {
     payload: GenerateStoryInput;
   }): Promise<GenerateStoryResult> {
     const payload = generateStoryInputSchema.parse(input.payload);
+    let ownsIdempotencyClaim = false;
+
+    if (payload.idempotencyKey) {
+      const cachedResult = await this.findIdempotentResult(
+        input.userId,
+        payload.idempotencyKey
+      );
+      if (cachedResult) {
+        return this.hydrateGenerateStoryResult(cachedResult);
+      }
+
+      const claimed = await this.claimIdempotencyKey(
+        input.userId,
+        payload.idempotencyKey
+      );
+      ownsIdempotencyClaim = claimed;
+      if (!claimed) {
+        const resolved = await this.waitForIdempotentResult(
+          input.userId,
+          payload.idempotencyKey
+        );
+        if (resolved) {
+          return this.hydrateGenerateStoryResult(resolved);
+        }
+      }
+    }
+
+    try {
+      return await this.generateOrReuseUncached(input, payload);
+    } catch (error) {
+      // Liberta a reserva pendente: um "Tentar novamente" (mesma chave) não deve
+      // ficar à espera de um resultado que nunca chega.
+      if (ownsIdempotencyClaim && payload.idempotencyKey) {
+        await this.releaseIdempotencyClaim(input.userId, payload.idempotencyKey);
+      }
+      throw error;
+    }
+  }
+
+  private async generateOrReuseUncached(
+    input: { userId: string; tier: SubscriptionTier },
+    payload: GenerateStoryInput
+  ): Promise<GenerateStoryResult> {
+
     const selection = getSelectionFromPassageId(payload.passageSlug);
     if (!selection) {
       throw new AdaptationNotFound(`Passagem inválida: ${payload.passageSlug}`);
@@ -116,13 +170,15 @@ export class StoryGenerationService {
       });
 
       if (cached) {
-        return this.attachAdaptationToUser({
+        const result = await this.attachAdaptationToUser({
           userId: input.userId,
           childProfileId: payload.childProfileId,
           adaptation: cached,
           cacheKey,
           source: 'cached',
         });
+        await this.storeIdempotentResult(input.userId, payload.idempotencyKey, result);
+        return result;
       }
     }
 
@@ -208,20 +264,182 @@ export class StoryGenerationService {
       cacheKey,
       source: 'generated',
       totalPages: content.data.pages.length,
+      content: content.data,
+      quiz,
+      adaptationNote: generated.adaptationNote,
     });
 
     await this.prepareAudio(adaptation.id);
+    await this.storeIdempotentResult(input.userId, payload.idempotencyKey, result);
     return result;
+  }
+
+  private async hydrateGenerateStoryResult(
+    result: Pick<GenerateStoryResult, 'adaptationId' | 'userStoryId' | 'title'>
+  ): Promise<GenerateStoryResult> {
+    const adaptation = await this.prisma.passageAdaptation.findUnique({
+      where: { id: result.adaptationId },
+    });
+    if (!adaptation) {
+      throw new AdaptationNotFound(`Adaptação não encontrada: ${result.adaptationId}`);
+    }
+
+    const content = adaptationContentSchema.safeParse(adaptation.content);
+    if (!content.success) {
+      throw new LlmValidationError('Adaptação sem conteúdo válido.');
+    }
+
+    const quiz = adaptation.quiz
+      ? storyQuizSchema.safeParse(adaptation.quiz).success
+        ? storyQuizSchema.parse(adaptation.quiz)
+        : undefined
+      : undefined;
+
+    return {
+      ...result,
+      content: content.data,
+      quiz,
+      adaptationNote: adaptation.adaptationNote,
+    };
+  }
+
+  private async findIdempotentResult(
+    userId: string,
+    idempotencyKey?: string
+  ): Promise<Pick<GenerateStoryResult, 'adaptationId' | 'userStoryId' | 'title'> | null> {
+    if (!idempotencyKey) return null;
+
+    const existing = await this.prisma.storyGenerationIdempotency.findUnique({
+      where: {
+        userId_idempotencyKey: { userId, idempotencyKey },
+      },
+    });
+
+    if (
+      !existing ||
+      existing.expiresAt <= new Date() ||
+      existing.title === IDEMPOTENCY_PENDING_TITLE ||
+      !existing.adaptationId ||
+      !existing.userStoryId
+    ) {
+      return null;
+    }
+
+    return {
+      adaptationId: existing.adaptationId,
+      userStoryId: existing.userStoryId,
+      title: existing.title,
+    };
+  }
+
+  private async claimIdempotencyKey(
+    userId: string,
+    idempotencyKey: string
+  ): Promise<boolean> {
+    try {
+      await this.prisma.storyGenerationIdempotency.create({
+        data: {
+          userId,
+          idempotencyKey,
+          adaptationId: '',
+          userStoryId: '',
+          title: IDEMPOTENCY_PENDING_TITLE,
+          expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+        },
+      });
+      return true;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  private async waitForIdempotentResult(
+    userId: string,
+    idempotencyKey: string
+  ): Promise<GenerateStoryResult | null> {
+    const deadline = Date.now() + IDEMPOTENCY_WAIT_MS;
+
+    while (Date.now() < deadline) {
+      const resolved = await this.findIdempotentResult(userId, idempotencyKey);
+      if (resolved) {
+        return this.hydrateGenerateStoryResult(resolved);
+      }
+      await new Promise((resolve) => setTimeout(resolve, IDEMPOTENCY_POLL_MS));
+    }
+
+    return null;
+  }
+
+  private async releaseIdempotencyClaim(userId: string, idempotencyKey: string): Promise<void> {
+    try {
+      await this.prisma.storyGenerationIdempotency.deleteMany({
+        where: { userId, idempotencyKey, title: IDEMPOTENCY_PENDING_TITLE },
+      });
+    } catch (error) {
+      console.error('[StoryGeneration] Falha ao libertar a chave de idempotência:', error);
+    }
+  }
+
+  private async storeIdempotentResult(
+    userId: string,
+    idempotencyKey: string | undefined,
+    result: GenerateStoryResult
+  ): Promise<void> {
+    if (!idempotencyKey) return;
+
+    await this.prisma.storyGenerationIdempotency.updateMany({
+      where: {
+        userId,
+        idempotencyKey,
+        title: IDEMPOTENCY_PENDING_TITLE,
+      },
+      data: {
+        adaptationId: result.adaptationId,
+        userStoryId: result.userStoryId,
+        title: result.title,
+        expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+      },
+    });
   }
 
   private async attachAdaptationToUser(params: {
     userId: string;
     childProfileId?: string;
-    adaptation: { id: string; title: string };
+    adaptation: {
+      id: string;
+      title: string;
+      content?: unknown;
+      quiz?: unknown;
+      adaptationNote?: string | null;
+    };
     cacheKey: string;
     source: 'cached' | 'generated';
     totalPages?: number;
+    content?: AdaptationContent;
+    quiz?: StoryQuizData;
+    adaptationNote?: string | null;
   }): Promise<GenerateStoryResult> {
+    const parsedContent = params.content
+      ?? (adaptationContentSchema.safeParse(params.adaptation.content).success
+        ? adaptationContentSchema.parse(params.adaptation.content)
+        : null);
+    if (!parsedContent) {
+      throw new LlmValidationError('Adaptação sem conteúdo válido.');
+    }
+
+    const parsedQuiz =
+      params.quiz ??
+      (params.adaptation.quiz
+        ? storyQuizSchema.safeParse(params.adaptation.quiz).success
+          ? storyQuizSchema.parse(params.adaptation.quiz)
+          : undefined
+        : undefined);
     const userStory = await this.userStories.upsertFromAdaptation({
       userId: params.userId,
       childProfileId: params.childProfileId,
@@ -258,6 +476,9 @@ export class StoryGenerationService {
       adaptationId: params.adaptation.id,
       userStoryId: userStory.id,
       title: params.adaptation.title,
+      content: parsedContent,
+      quiz: parsedQuiz,
+      adaptationNote: params.adaptationNote ?? params.adaptation.adaptationNote ?? null,
     };
   }
 

@@ -1,18 +1,14 @@
-import React, { Suspense } from 'react';
+import React from 'react';
 import { StoryPageContent } from '@/components/stories/StoryPageContent';
 
-function StoryPageLoading() {
-  return (
-    <div className="min-h-[40vh] flex items-center justify-center">
-      <div className="w-10 h-10 rounded-full border-2 border-vida/20 border-t-vida animate-spin" />
-    </div>
-  );
-}
+type StoryPageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
-export default function StoryPage() {
-  return (
-    <Suspense fallback={<StoryPageLoading />}>
-      <StoryPageContent />
-    </Suspense>
-  );
+export default async function StoryPage({ params, searchParams }: StoryPageProps) {
+  const { id } = await params;
+  const query = await searchParams;
+
+  return <StoryPageContent storyId={id} serverSearchParams={query} />;
 }

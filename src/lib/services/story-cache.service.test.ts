@@ -54,6 +54,38 @@ describe('StoryCacheService', () => {
     expect(service.shouldTryCachedView(MAX_CACHED_VIEWS_PER_REQUEST)).toBe(false);
   });
 
+  it('matches legacy bibleVersionId values when picking cache', async () => {
+    vi.mocked(prisma.adaptationView.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.passageAdaptation.findMany).mockResolvedValue([
+      { id: 'legacy-seed', title: 'Seed', voteScore: 5, voteCount: 1 },
+    ] as never);
+
+    const service = new StoryCacheService(prisma as never);
+    const lookupKey = {
+      passageId: 'passage-1',
+      bibleVersionId: 'alm1911',
+      verseFrom: 1,
+      verseTo: 3,
+      ageTier: 'TIER_3_5' as const,
+      languageStyle: 'simple',
+      contentType: 'text' as const,
+    };
+
+    await service.pickHighestScoredUnseenCachedAdaptation({
+      lookupKey,
+      cacheKey: buildAdaptationCacheKey(lookupKey),
+      userId: 'user-b',
+    });
+
+    expect(prisma.passageAdaptation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          bibleVersionId: { in: expect.arrayContaining(['alm1911', '3254']) },
+        }),
+      })
+    );
+  });
+
   it('excludes own adaptations and already seen ids when picking cache', async () => {
     vi.mocked(prisma.adaptationView.findMany).mockResolvedValue([
       { adaptationId: 'seen-1' },

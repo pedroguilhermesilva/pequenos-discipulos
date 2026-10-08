@@ -13,19 +13,26 @@ Camada de negócio da aplicação (`src/lib/services/`).
 
 Gera ou reutiliza adaptações de passagens bíblicas.
 
-**Entrada:** `generateStoryInputSchema` (`passageSlug`, `ageTier`, `contentType`, `mode`, `currentAdaptationId`, …).
+**Entrada:** `generateStoryInputSchema` (`passageSlug`, `ageTier`, `contentType`, `mode`, `currentAdaptationId`, `idempotencyKey`, …).
 
 **Fluxo:**
 
-1. Até 3 visualizações cache de adaptações de **outros** utilizadores (mesma chave de passagem/idade/estilo), servidas pela **maior `voteScore`** (empate → aleatório).
+1. Até 3 visualizações cache de adaptações de **outros** utilizadores (mesma chave de passagem/idade/estilo), servidas pela **maior `voteScore`** (empate → aleatório). **Status `draft` entra no cache** — não há filtro de moderação nesta fase.
 2. Se esgotado, gera via LLM com **apenas a referência bíblica** (sem texto integral no repo).
 3. Regista `AdaptationView` para tracking.
+4. **`idempotencyKey` (opcional):** evita geração duplicada quando o cliente reenvia o mesmo pedido (StrictMode, redirect, etc.). Persistido em `StoryGenerationIdempotency` (TTL ~5 min).
+
+**Limites de plano:** `assertCanGenerate(userId, tier, contentType)` recebe o **`tier` lido do Postgres** em cada request via `requireCurrentUser()` — **não** vem do JWT. Alterar `subscriptionTier` na BD reflecte-se de imediato; não é preciso logout/login.
+
+**Resposta:** inclui `content` (e `quiz` quando existir) para o viewer renderizar sem segundo fetch.
+
+**URL pós-geração:** mantém `/stories/nova?…&historia=<userStoryId>&pronto=1` — evita remount ao trocar o segmento `[id]`.
 
 **API:** `POST /api/stories/generate` (autenticada).
 
 ## StoryCacheService
 
-Seleção de adaptações já existentes por `voteScore`, excluindo as do próprio utilizador e as já vistas.
+Seleção de adaptações já existentes por `voteScore`, excluindo as do próprio utilizador e as já vistas. A chave de cache normaliza `bibleVersionId` (`alm1911`) e a pesquisa inclui aliases legados (ex.: `3254`).
 
 ## AudioService
 

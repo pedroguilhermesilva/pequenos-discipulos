@@ -11,6 +11,7 @@ import type { UserPreferences } from '@/lib/onboarding/types';
 import { FRIENDLY_GENERATION_ERROR } from '@/lib/domain/errors';
 import {
   readStoryGenerationResponse,
+  type StoryGenerationData,
   type StoryGenerationOutcome,
 } from '@/lib/stories/request-story-generation';
 
@@ -24,7 +25,8 @@ function generationRequestKey(
   ageTier: AgeTier,
   prefs: UserPreferences,
   mode: 'initial' | 'regenerate',
-  currentAdaptationId?: string
+  currentAdaptationId: string | undefined,
+  idempotencyKey: string
 ) {
   return [
     passageSlug,
@@ -36,7 +38,15 @@ function generationRequestKey(
     prefs.languageStyle,
     mode,
     currentAdaptationId ?? '',
+    idempotencyKey,
   ].join('|');
+}
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 interface StoryGeneratingProps {
@@ -49,7 +59,7 @@ interface StoryGeneratingProps {
   childProfileId?: string;
   mode?: 'initial' | 'regenerate';
   currentAdaptationId?: string;
-  onComplete: (result: { userStoryId: string; adaptationId: string; title: string }) => void;
+  onComplete: (result: StoryGenerationData) => void;
   onError?: (message: string) => void;
 }
 
@@ -69,6 +79,9 @@ export function StoryGenerating({
   const config = contentTypeConfig[contentType];
   const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // Uma chave por tentativa: re-renders e remounts do StrictMode reutilizam-na (sem geração
+  // duplicada); "Tentar novamente" cria uma nova (o servidor também liberta a reserva falhada).
+  const idempotencyKeyRef = useRef<{ attempt: number; key: string } | null>(null);
 
   // Callbacks em refs: uma nova identidade de função no pai não deve disparar outro pedido.
   const onCompleteRef = useRef(onComplete);
@@ -85,6 +98,10 @@ export function StoryGenerating({
 
   useEffect(() => {
     let cancelled = false;
+    if (idempotencyKeyRef.current?.attempt !== attempt) {
+      idempotencyKeyRef.current = { attempt, key: createIdempotencyKey() };
+    }
+    const idempotencyKey = idempotencyKeyRef.current.key;
 
     async function run() {
       try {
@@ -96,7 +113,8 @@ export function StoryGenerating({
           ageTier,
           { ...DEFAULT_PREFERENCES, bibleVersionId, languageStyle },
           mode,
-          currentAdaptationId
+          currentAdaptationId,
+          idempotencyKey
         );
         let pending = inFlightGenerations.get(requestKey);
         if (!pending) {
@@ -114,6 +132,7 @@ export function StoryGenerating({
               childProfileId,
               mode,
               currentAdaptationId,
+              idempotencyKey,
             }),
           })
             .then(readStoryGenerationResponse)

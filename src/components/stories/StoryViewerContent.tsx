@@ -37,6 +37,9 @@ interface StoryViewerContentProps {
   adaptationId?: string;
   userStoryId?: string;
   initialSourceVerses?: BibleVerseLine[];
+  initialAdaptationContent?: AdaptationContent;
+  initialAdaptationQuiz?: StoryQuizData;
+  initialAdaptationNote?: string | null;
   onBack: () => void;
   onRegenerate?: () => void;
 }
@@ -49,6 +52,9 @@ export function StoryViewerContent({
   adaptationId,
   userStoryId: _userStoryId,
   initialSourceVerses,
+  initialAdaptationContent,
+  initialAdaptationQuiz,
+  initialAdaptationNote,
   onBack,
   onRegenerate,
 }: StoryViewerContentProps) {
@@ -75,10 +81,18 @@ export function StoryViewerContent({
     return [];
   });
   const [sourceLoading] = useState(false);
-  const [adaptationContent, setAdaptationContent] = useState<AdaptationContent | null>(null);
-  const [adaptationQuiz, setAdaptationQuiz] = useState<StoryQuizData | null>(null);
-  const [adaptationNote, setAdaptationNote] = useState<string | null>(null);
-  const [adaptationLoading, setAdaptationLoading] = useState(Boolean(adaptationId));
+  const [adaptationContent, setAdaptationContent] = useState<AdaptationContent | null>(
+    initialAdaptationContent ?? null
+  );
+  const [adaptationQuiz, setAdaptationQuiz] = useState<StoryQuizData | null>(
+    initialAdaptationQuiz ?? null
+  );
+  const [adaptationNote, setAdaptationNote] = useState<string | null>(
+    initialAdaptationNote ?? null
+  );
+  const [adaptationLoading, setAdaptationLoading] = useState(
+    Boolean(adaptationId) && !initialAdaptationContent
+  );
 
   const totalPages = adaptationContent?.pages.length ?? story.totalPages;
   const passageReference = formatPassageReference(passage, passageRange);
@@ -110,8 +124,19 @@ export function StoryViewerContent({
   }, [initialSourceVerses, passage.verses, passageRange.verseFrom]);
 
   useEffect(() => {
+    if (initialAdaptationContent) {
+      setAdaptationContent(initialAdaptationContent);
+      setAdaptationLoading(false);
+    }
+  }, [initialAdaptationContent]);
+
+  useEffect(() => {
     if (!adaptationId) {
       setAdaptationLoading(false);
+      return;
+    }
+
+    if (initialAdaptationContent) {
       return;
     }
 
@@ -140,7 +165,7 @@ export function StoryViewerContent({
     return () => {
       cancelled = true;
     };
-  }, [adaptationId]);
+  }, [adaptationId, initialAdaptationContent]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -348,7 +373,12 @@ export function StoryViewerContent({
 
               {adaptationId ? (
                 adaptationLoading || !adaptationContent ? (
-                  <p className="text-center text-oliva text-sm py-8">Carregando adaptação...</p>
+                  <p
+                    className="text-center text-oliva text-sm py-8"
+                    data-testid="story-adaptation-loading"
+                  >
+                    Carregando adaptação...
+                  </p>
                 ) : contentType === 'audio' ? (
                   <StoryNarrationSection
                     adaptationId={adaptationId}

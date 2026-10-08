@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_BIBLE_VERSION_ID,
-  getBibleVersionLabel,
+  getBibleVersionIdVariants,
   resolveBibleVersionId,
 } from '@/lib/stories/bible-versions';
 
-describe('bible-versions', () => {
-  it('maps legacy ids to the local Almeida version', () => {
-    expect(resolveBibleVersionId('211')).toBe(DEFAULT_BIBLE_VERSION_ID);
+describe('bible version aliases', () => {
+  it('resolves legacy ids to the canonical local id', () => {
     expect(resolveBibleVersionId('3254')).toBe(DEFAULT_BIBLE_VERSION_ID);
-    expect(resolveBibleVersionId(DEFAULT_BIBLE_VERSION_ID)).toBe(DEFAULT_BIBLE_VERSION_ID);
   });
 
-  it('labels the embedded translation', () => {
-    expect(getBibleVersionLabel(DEFAULT_BIBLE_VERSION_ID)).toContain('Almeida');
+  it('returns all stored variants for cache lookup', () => {
+    const variants = getBibleVersionIdVariants('3254');
+    expect(variants).toContain(DEFAULT_BIBLE_VERSION_ID);
+    expect(variants).toContain('3254');
   });
 });

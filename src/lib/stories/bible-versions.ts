@@ -24,6 +24,18 @@ export function resolveBibleVersionId(bibleVersionId: string): string {
   return LEGACY_ALIASES[bibleVersionId] ?? bibleVersionId;
 }
 
+/** All stored ids that refer to the same Bible version (e.g. `3254` and `alm1911`). */
+export function getBibleVersionIdVariants(bibleVersionId: string): string[] {
+  const resolved = resolveBibleVersionId(bibleVersionId);
+  const variants = new Set<string>([resolved, bibleVersionId]);
+  for (const [legacyId, canonicalId] of Object.entries(LEGACY_ALIASES)) {
+    if (canonicalId === resolved) {
+      variants.add(legacyId);
+    }
+  }
+  return [...variants];
+}
+
 /** @deprecated Use resolveBibleVersionId */
 export const resolveYouVersionBibleId = resolveBibleVersionId;
 

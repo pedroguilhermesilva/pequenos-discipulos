@@ -12,6 +12,20 @@ describe('readStoryGenerationResponse', () => {
     expect(await readStoryGenerationResponse(response(200, JSON.stringify({ ok: true, data })))).toEqual({ ok: true, data });
   });
 
+  it('passes the story content through so the client can show it without a refetch (no flicker)', async () => {
+    const data = {
+      userStoryId: 'u',
+      adaptationId: 'a',
+      title: 't',
+      content: { pages: [{ paragraphs: [[{ type: 'text', value: 'Olá' }]] }] },
+      quiz: undefined,
+      adaptationNote: 'nota',
+    };
+    const r = await readStoryGenerationResponse(response(200, JSON.stringify({ ok: true, data })));
+    expect(r.ok && r.data.content).toEqual(data.content);
+    expect(r.ok && r.data.adaptationNote).toBe('nota');
+  });
+
   it('uses the API friendly message and retryable flag on failure', async () => {
     const r = await readStoryGenerationResponse(
       response(502, JSON.stringify({ ok: false, message: FRIENDLY_GENERATION_ERROR, retryable: true }))

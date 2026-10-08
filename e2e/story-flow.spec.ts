@@ -37,6 +37,7 @@ test.describe('story generation flow', () => {
     await page.getByRole('button', { name: /gerar história/i }).click();
 
     await expect(page).toHaveURL(/pronto=1/, { timeout: 90_000 });
+    await expect(page).toHaveURL(/\/stories\/nova\?.*historia=/, { timeout: 5_000 });
     await expect(page.getByRole('heading', { name: /história: mateus/i })).toBeVisible();
     await expect(page.getByText(/era uma vez, no céu muito azul/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /gerar novamente/i })).toBeVisible();

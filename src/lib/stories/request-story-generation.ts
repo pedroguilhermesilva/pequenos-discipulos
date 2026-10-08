@@ -1,6 +1,15 @@
 import { FRIENDLY_GENERATION_ERROR } from '@/lib/domain/errors';
+import type { AdaptationContent, StoryQuizData } from '@/lib/domain/schemas';
 
-export type StoryGenerationData = { userStoryId: string; adaptationId: string; title: string };
+/** A API devolve o conteúdo da história para o cliente a mostrar sem novo pedido (evita o flicker). */
+export type StoryGenerationData = {
+  userStoryId: string;
+  adaptationId: string;
+  title: string;
+  content: AdaptationContent;
+  quiz?: StoryQuizData;
+  adaptationNote?: string | null;
+};
 
 export type StoryGenerationOutcome =
   | { ok: true; data: StoryGenerationData }
