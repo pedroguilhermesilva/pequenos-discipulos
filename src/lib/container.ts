@@ -31,6 +31,7 @@ import { VoteService } from '@/lib/services/vote.service';
 import { AudioService } from '@/lib/services/audio.service';
 import { StorageAccessService } from '@/lib/services/storage-access.service';
 import { UserDataService } from '@/lib/services/user-data.service';
+import { BibleTextService } from '@/lib/services/bible-text.service';
 
 const adaptationRepo = new PrismaAdaptationRepository(prisma);
 const childProfileRepo = new PrismaChildProfileRepository(prisma);
@@ -108,6 +109,7 @@ const audioService = new AudioService(
   googleTtsRuntimeConfig.cacheSuffix
 );
 const storyCacheService = new StoryCacheService(prisma);
+const bibleTextService = new BibleTextService(prisma);
 const moderationService = new ModerationService(
   adaptationRepo,
   moderationRepo,
@@ -148,7 +150,8 @@ export const container = {
       audioService,
       storyCacheService
     ),
-    library: new LibraryService(adaptationRepo, userStoryRepo),
+    library: new LibraryService(adaptationRepo, userStoryRepo, bibleTextService),
+    bibleText: bibleTextService,
     favorites: new FavoritesService(userStoryRepo),
     childProfiles: new ChildProfileService(childProfileRepo, planLimitsService),
     quiz: new QuizService(adaptationRepo),

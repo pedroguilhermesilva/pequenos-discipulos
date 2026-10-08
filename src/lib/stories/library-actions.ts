@@ -45,6 +45,50 @@ export async function getUserStoryAction(storyId: string) {
   return container.services.library.getUserStory(user.id, storyId);
 }
 
+export async function getPassageSourceVersesAction(input: {
+  passageSlug: string;
+  verseFrom: number;
+  verseTo: number;
+  bibleVersionId?: string;
+}) {
+  await requireCurrentUser();
+
+  const passage = await container.prisma.passage.findUnique({
+    where: { slug: input.passageSlug },
+  });
+
+  if (!passage) {
+    return {
+      ok: false as const,
+      code: 'NOT_FOUND' as const,
+      message: 'Passagem bíblica não encontrada.',
+    };
+  }
+
+  const result = await container.services.bibleText.resolvePassageVerses({
+    passage,
+    verseFrom: input.verseFrom,
+    verseTo: input.verseTo,
+    bibleVersionId: input.bibleVersionId,
+  });
+
+  if (result.error) {
+    return {
+      ok: false as const,
+      code: 'BIBLE_TEXT_FETCH_ERROR' as const,
+      message: result.error,
+    };
+  }
+
+  return {
+    ok: true as const,
+    data: {
+      verses: result.verses,
+      bibleVersionId: result.bibleVersionId,
+    },
+  };
+}
+
 export async function getAdaptationContentAction(adaptationId: string) {
   const adaptation = await container.repositories.adaptations.findById(adaptationId);
   if (!adaptation) {

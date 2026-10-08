@@ -25,7 +25,7 @@ As contagens de versículos por capítulo derivam do pacote **ALM1911** do repos
 
 ## Tradução de referência
 
-**Almeida 1911** — referência usada na app para identificar a versão (`alm1911`), sem armazenar o texto completo.
+**Almeida 1911** — referência usada na app para identificar a versão (`alm1911`). O texto integral **não** fica no repositório; quando o utilizador abre a janela «Passagem bíblica», o servidor obtém o capítulo em **ALM1911** (release v1.0.0 do [damarals/biblias](https://github.com/damarals/biblias)) e guarda em `Passage.sourceText` para reutilizar depois.
 
 ## Licença do empacotamento
 

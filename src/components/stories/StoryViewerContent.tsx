@@ -44,6 +44,8 @@ interface StoryViewerContentProps {
   initialAdaptationContent?: AdaptationContent;
   initialAdaptationQuiz?: StoryQuizData;
   initialAdaptationNote?: string | null;
+  initialSourceVersesError?: string | null;
+  bibleVersionId?: string;
   onBack: () => void;
   onRegenerate?: () => void;
 }
@@ -59,6 +61,8 @@ export function StoryViewerContent({
   initialAdaptationContent,
   initialAdaptationQuiz,
   initialAdaptationNote,
+  initialSourceVersesError,
+  bibleVersionId,
   onBack,
   onRegenerate,
 }: StoryViewerContentProps) {
@@ -618,7 +622,10 @@ export function StoryViewerContent({
         passageReference={passageReference}
         verses={sourceVerses}
         verseFrom={passageRange.verseFrom}
+        verseTo={passageRange.verseTo}
+        bibleVersionId={bibleVersionId}
         loading={sourceLoading}
+        sourceError={initialSourceVersesError}
         adaptationNote={adaptationNote}
       />
 

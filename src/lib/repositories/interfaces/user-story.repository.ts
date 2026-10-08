@@ -20,7 +20,9 @@ export type UserStoryDetail = {
   passageSlug: string;
   verseFrom: number;
   verseTo: number;
+  bibleVersionId: string;
   sourceVerses: BibleVerseLine[];
+  sourceVersesError?: string;
 };
 
 export type UpsertUserStoryInput = {

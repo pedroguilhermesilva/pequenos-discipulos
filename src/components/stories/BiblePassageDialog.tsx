@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { getPassageSourceVersesAction } from '@/lib/stories/library-actions';
 import {
-  chunkBibleVerses,
-  toBibleVerseLines,
   type BiblePassage,
   type BibleVerseLine,
 } from '@/lib/stories/bible-passages';
+import { getBibleVersionLabel } from '@/lib/stories/bible-versions';
 import { cn } from '@/lib/cn';
 
 interface BiblePassageDialogProps {
@@ -17,25 +17,28 @@ interface BiblePassageDialogProps {
   passageReference: string;
   verses?: BibleVerseLine[];
   verseFrom?: number;
+  verseTo?: number;
+  bibleVersionId?: string;
   loading?: boolean;
+  sourceError?: string | null;
   adaptationNote?: string | null;
 }
 
 function BibleVerseText({ verses }: { verses: BibleVerseLine[] }) {
   return (
-    <p className="text-sm text-tinta leading-relaxed font-story">
+    <div className="space-y-3 font-story text-sm leading-relaxed text-tinta">
       {verses.map((verse) => (
-        <span key={verse.number} className="inline">
+        <p key={verse.number}>
           <sup
-            className="mr-0.5 text-[0.7em] font-bold text-laranja align-super not-italic"
+            className="mr-1 text-[0.7em] font-bold text-laranja align-super not-italic"
             aria-label={`Versículo ${verse.number}`}
           >
             {verse.number}
           </sup>
-          {verse.text}{' '}
-        </span>
+          {verse.text}
+        </p>
       ))}
-    </p>
+    </div>
   );
 }
 
@@ -144,30 +147,88 @@ export function BiblePassageDialog({
   passageReference,
   verses: versesProp,
   verseFrom = 1,
-  loading = false,
+  verseTo,
+  bibleVersionId,
+  loading: loadingProp = false,
+  sourceError: sourceErrorProp,
   adaptationNote,
 }: BiblePassageDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const adaptationNoteTooltipId = useId();
-  const [currentPage, setCurrentPage] = useState(1);
+  const [resolvedVerses, setResolvedVerses] = useState<BibleVerseLine[]>(versesProp ?? []);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(sourceErrorProp ?? null);
 
-  const verses = useMemo(() => {
-    if (versesProp && versesProp.length > 0) return versesProp;
-    if (passage.verses.length > 0) {
-      return toBibleVerseLines(passage.verses, verseFrom);
-    }
-    return [];
-  }, [passage.verses, versesProp, verseFrom]);
-
-  const pages = useMemo(() => chunkBibleVerses(verses), [verses]);
-  const totalPages = pages.length;
-  const pageVerses = pages[currentPage - 1] ?? [];
-  const isLastPage = currentPage >= totalPages;
+  const translationLabel = getBibleVersionLabel(bibleVersionId ?? 'alm1911');
+  const loading = loadingProp || fetchLoading;
+  const verses = resolvedVerses;
+  const errorMessage = fetchError;
 
   useEffect(() => {
-    if (open) setCurrentPage(1);
-  }, [open]);
+    setResolvedVerses(versesProp ?? []);
+  }, [versesProp]);
+
+  useEffect(() => {
+    setFetchError(sourceErrorProp ?? null);
+  }, [sourceErrorProp]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      loadingProp ||
+      (versesProp && versesProp.length > 0) ||
+      resolvedVerses.length > 0
+    ) {
+      return;
+    }
+
+    const effectiveVerseTo = verseTo ?? passage.defaultVerseTo;
+    let cancelled = false;
+
+    async function loadVerses() {
+      setFetchLoading(true);
+      setFetchError(null);
+
+      try {
+        const result = await getPassageSourceVersesAction({
+          passageSlug: passage.id,
+          verseFrom,
+          verseTo: effectiveVerseTo,
+          bibleVersionId,
+        });
+
+        if (cancelled) return;
+
+        if (!result.ok) {
+          setFetchError(result.message);
+          setResolvedVerses([]);
+          return;
+        }
+
+        setResolvedVerses(result.data.verses);
+      } finally {
+        if (!cancelled) {
+          setFetchLoading(false);
+        }
+      }
+    }
+
+    void loadVerses();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bibleVersionId,
+    loadingProp,
+    open,
+    passage.defaultVerseTo,
+    passage.id,
+    verseFrom,
+    verseTo,
+    resolvedVerses.length,
+    versesProp,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -177,16 +238,6 @@ export function BiblePassageDialog({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
-        return;
-      }
-
-      if (e.key === 'ArrowLeft') {
-        setCurrentPage((page) => Math.max(1, page - 1));
-        return;
-      }
-
-      if (e.key === 'ArrowRight') {
-        setCurrentPage((page) => Math.min(totalPages, page + 1));
         return;
       }
 
@@ -217,7 +268,7 @@ export function BiblePassageDialog({
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose, totalPages]);
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -262,15 +313,29 @@ export function BiblePassageDialog({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 min-h-0">
+          <p className="mb-4 text-xs text-oliva/80">Tradução: {translationLabel}</p>
+
           {loading ? (
             <p className="text-sm text-oliva/80">Carregando texto bíblico...</p>
-          ) : pageVerses.length > 0 ? (
-            <BibleVerseText verses={pageVerses} />
+          ) : errorMessage ? (
+            <div
+              role="alert"
+              className="rounded-livro border border-borda bg-pergaminho-escuro/40 px-4 py-3 text-sm text-tinta"
+            >
+              {errorMessage}
+            </div>
+          ) : verses.length > 0 ? (
+            <BibleVerseText verses={verses} />
           ) : (
-            <p className="text-sm text-oliva/80">{passage.preview}</p>
+            <div
+              role="alert"
+              className="rounded-livro border border-borda bg-pergaminho-escuro/40 px-4 py-3 text-sm text-tinta"
+            >
+              Não foi possível carregar o texto bíblico desta passagem.
+            </div>
           )}
 
-          {isLastPage && !loading && (
+          {!loading && (
             <div className="mt-5 p-4 bg-pergaminho-escuro/50 rounded-livro border border-borda">
               <div className="mb-2 flex items-center gap-1">
                 <p className="text-[10px] font-bold text-oliva uppercase tracking-wider">
@@ -283,54 +348,15 @@ export function BiblePassageDialog({
           )}
         </div>
 
-        {totalPages > 1 && !loading && (
-          <div className="border-t border-borda px-5 py-3 shrink-0">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs font-semibold text-oliva whitespace-nowrap">
-                  Página {currentPage} de {totalPages}
-                </span>
-                <div className="w-24 sm:w-32 h-1.5 bg-borda/60 rounded-full overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-amber to-laranja h-full rounded-full transition-all duration-500"
-                    style={{ width: `${(currentPage / totalPages) * 100}%` }}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  disabled={currentPage === 1}
-                  aria-label="Página anterior"
-                  className="w-9 h-9 rounded-full border border-borda flex items-center justify-center text-oliva hover:text-laranja hover:border-laranja transition-all disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja"
-                >
-                  <span className="material-symbols-outlined text-sm">arrow_back_ios_new</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  disabled={currentPage === totalPages}
-                  aria-label="Próxima página"
-                  className={cn(
-                    'w-9 h-9 rounded-full flex items-center justify-center transition-all',
-                    'bg-gradient-to-r from-amber to-laranja text-white shadow-livro',
-                    'hover:from-amber/90 hover:to-laranja/90 disabled:opacity-30',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja'
-                  )}
-                >
-                  <span className="material-symbols-outlined text-sm font-bold">arrow_forward_ios</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="border-t border-borda px-5 py-4 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber to-laranja hover:from-amber/90 hover:to-laranja/90 font-bold text-xs text-white transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja focus-visible:ring-offset-2"
+            className={cn(
+              'w-full py-2.5 rounded-xl bg-gradient-to-r from-amber to-laranja',
+              'hover:from-amber/90 hover:to-laranja/90 font-bold text-xs text-white transition-all',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja focus-visible:ring-offset-2'
+            )}
           >
             Fechar
           </button>
