@@ -119,7 +119,7 @@ Revisão antes de uma versão entrar na comunidade (issue #12).
 
 **Denúncias:** `POST /api/reports` — após `COMMUNITY_REPORT_THRESHOLD` (default 3), status `withdrawn`.
 
-**Admin:** `/admin/moderacao` + `GET/POST /api/admin/moderation/*` — requer email em `ADMIN_EMAILS`.
+**Admin:** `/admin/moderacao` + `GET/POST /api/admin/moderation/*` — requer `User.isAdmin = true` (definido manualmente na BD).
 
 **Auditoria:** `ModerationAuditLog` regista quem/o quê aprovou, recusou ou retirou, quando e porquê.
 
@@ -133,7 +133,6 @@ Revisão antes de uma versão entrar na comunidade (issue #12).
 | `AUTH_SECRET` / `AUTH_URL` | NextAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth opcional |
 | `LLM_*` | Geração de histórias + revisão automática na partilha |
-| `ADMIN_EMAILS` | Emails (vírgula) com acesso a `/admin/moderacao` |
 | `GOOGLE_TTS_*` / `TTS_USE_STUB` | Narração TTS (Google) |
 | `NARRATION_ALIGNER` / `GROQ_API_KEY` | Alinhamento palavra a palavra pós-Gemini |
 | `ELEVENLABS_*` | SFX (ElevenLabs, até #5) |

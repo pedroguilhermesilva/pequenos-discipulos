@@ -1,20 +1,40 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isAdminEmail } from '@/lib/auth/require-admin';
+import { describe, expect, it, vi } from 'vitest';
+import { UnauthorizedError } from '@/lib/domain/errors';
+import { isAdminUser, requireAdmin } from '@/lib/auth/require-admin';
 
-describe('isAdminEmail', () => {
-  afterEach(() => {
-    delete process.env.ADMIN_EMAILS;
+vi.mock('@/lib/auth/get-current-user', () => ({
+  requireCurrentUser: vi.fn(),
+}));
+
+import { requireCurrentUser } from '@/lib/auth/get-current-user';
+
+describe('isAdminUser', () => {
+  it('returns true when isAdmin is true', () => {
+    expect(isAdminUser({ isAdmin: true })).toBe(true);
   });
 
-  it('returns true for allowlisted emails', () => {
-    process.env.ADMIN_EMAILS = 'pedro@example.com, admin@test.local';
-    expect(isAdminEmail('pedro@example.com')).toBe(true);
-    expect(isAdminEmail('ADMIN@test.local')).toBe(true);
+  it('returns false when isAdmin is false', () => {
+    expect(isAdminUser({ isAdmin: false })).toBe(false);
+  });
+});
+
+describe('requireAdmin', () => {
+  it('allows users with isAdmin true', async () => {
+    vi.mocked(requireCurrentUser).mockResolvedValue({
+      id: 'admin-1',
+      isAdmin: true,
+    } as never);
+
+    const user = await requireAdmin();
+    expect(user.id).toBe('admin-1');
   });
 
-  it('returns false for non-admin emails', () => {
-    process.env.ADMIN_EMAILS = 'pedro@example.com';
-    expect(isAdminEmail('other@example.com')).toBe(false);
-    expect(isAdminEmail(null)).toBe(false);
+  it('denies users with isAdmin false', async () => {
+    vi.mocked(requireCurrentUser).mockResolvedValue({
+      id: 'user-1',
+      isAdmin: false,
+    } as never);
+
+    await expect(requireAdmin()).rejects.toBeInstanceOf(UnauthorizedError);
   });
 });

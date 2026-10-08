@@ -25,7 +25,7 @@ npm run dev
 
 Ver `.env.example`. Obrigatórias em produção: `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `AUTH_URL`.
 
-Opcionais em produção: `ADMIN_EMAILS` (moderação manual — ex.: `pedro@example.com`); `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limit partilhado); `BLOB_READ_WRITE_TOKEN` (áudio privado no Vercel Blob store `pequenos-discipulos-audio`); `GOOGLE_TTS_CREDENTIALS_JSON` (conta de serviço com papel "Usuário da Plataforma de Agentes"; `GOOGLE_CLOUD_PROJECT_ID` opcional) para a narração Gemini Flash TTS ou Neural2; `NARRATION_ALIGNER=groq` + `GROQ_API_KEY` (alinhamento recomendado); `ELEVENLABS_API_KEY` (SFX até issue #5).
+Opcionais em produção: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (rate limit partilhado); `BLOB_READ_WRITE_TOKEN` (áudio privado no Vercel Blob store `pequenos-discipulos-audio`); `GOOGLE_TTS_CREDENTIALS_JSON` (conta de serviço com papel "Usuário da Plataforma de Agentes"; `GOOGLE_CLOUD_PROJECT_ID` opcional) para a narração Gemini Flash TTS ou Neural2; `NARRATION_ALIGNER=groq` + `GROQ_API_KEY` (alinhamento recomendado); `ELEVENLABS_API_KEY` (SFX até issue #5).
 
 Comparativo de vozes pt-BR: `docs/google-tts-voices-pt-br.md`.
 
@@ -39,7 +39,7 @@ Comparativo de vozes pt-BR: `docs/google-tts-voices-pt-br.md`.
 
 ## Moderação comunitária
 
-Partilha com a comunidade passa por `ModerationService` (moderação OpenAI + revisão LLM). Admin: `/admin/moderacao` (`ADMIN_EMAILS`). Só versões `community`/`as_default` entram no cache.
+Partilha com a comunidade passa por `ModerationService` (moderação OpenAI + revisão LLM). Admin: `/admin/moderacao` (coluna `User.isAdmin` na BD). Só versões `community`/`as_default` entram no cache.
 
 ## Testes locais (dev)
 

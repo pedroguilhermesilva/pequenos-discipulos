@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { ModerationAdminContent } from '@/components/admin/ModerationAdminContent';
-import { isAdminEmail } from '@/lib/auth/require-admin';
-import { requireCurrentUser } from '@/lib/auth/get-current-user';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { UnauthorizedError } from '@/lib/domain/errors';
 
 export const metadata = {
   title: 'Moderação — Pequenos Discípulos',
@@ -10,9 +10,13 @@ export const metadata = {
 };
 
 export default async function ModeracaoAdminPage() {
-  const user = await requireCurrentUser();
-  if (!isAdminEmail(user.email)) {
-    redirect('/home');
+  try {
+    await requireAdmin();
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      redirect('/home');
+    }
+    throw error;
   }
 
   return (
