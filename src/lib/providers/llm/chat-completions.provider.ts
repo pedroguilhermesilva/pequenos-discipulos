@@ -34,10 +34,10 @@ const MAX_ATTEMPTS = 2;
 const RETRY_INSTRUCTIONS = `
 
 CORREÇÃO OBRIGATÓRIA: a resposta anterior não seguiu a estrutura.
-- Siga EXATAMENTE o formato JSON descrito (todos os campos, incluindo "rotulo" em cada bloco "interativo").
-- Alterne blocos "texto" e "interativo" (nunca dois do mesmo tipo seguidos).
-- Não coloque a história inteira em um único bloco "texto".
-- Termine com um bloco "texto" após o último "interativo".
+- Siga EXATAMENTE o formato JSON descrito (todos os campos, incluindo marcadores_interativos em cada bloco "texto").
+- Use APENAS blocos "texto" — sem blocos "interativo" separados e sem linhas "Ouvir {algo}".
+- Cada marcador_interativo deve referenciar uma palavra que existe no conteudo do mesmo bloco.
+- Divida a narrativa em vários blocos "texto" curtos (não um bloco único com tudo).
 - Inclua "quiz" com title, subtitle, celebrationTitle, celebrationMessage e questions (2 a 3 perguntas, cada uma com exatamente 3 opções).`;
 
 export function resolveDefaultResponseFormat(baseUrl: string): LlmResponseFormat {

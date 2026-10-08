@@ -37,7 +37,7 @@ const SAMPLE_QUIZ = {
 };
 
 describe('parseStoryGenerationResponse', () => {
-  it('parses pedagogical JSON into adaptation content', () => {
+  it('parses inline marker JSON into adaptation content with embedded words', () => {
     const result = parseStoryGenerationResponse(
       JSON.stringify({
         metadata: {
@@ -49,27 +49,25 @@ describe('parseStoryGenerationResponse', () => {
         conteudo_estruturado: [
           {
             tipo: 'texto',
-            conteudo: 'Os amigos de Jesus estavam em um barco no mar.',
-          },
-          {
-            tipo: 'interativo',
-            rotulo: 'Ouvir a tempestade',
-            texto_para_audio: 'O vento soprava bem alto: Fwoooosh!',
-            tag_som: 'vento_tempestade_mar',
-          },
-          {
-            tipo: 'texto',
-            conteudo: 'Eles ficaram com medo, mas Jesus disse para ficarem calmos.',
-          },
-          {
-            tipo: 'interativo',
-            rotulo: 'Ouvir o que Jesus disse',
-            texto_para_audio: 'Coragem! Sou eu. Não tenham medo!',
-            tag_som: 'fala_jesus_coragem',
+            conteudo: 'Os amigos de Jesus estavam em um barco no mar. O vento soprava forte.',
+            marcadores_interativos: [
+              {
+                palavra: 'vento',
+                texto_para_audio: 'O vento soprava bem alto: Fwoooosh!',
+                tag_som: 'vento_tempestade_mar',
+              },
+            ],
           },
           {
             tipo: 'texto',
-            conteudo: 'Os discípulos ficaram em paz e seguiram Jesus com confiança.',
+            conteudo: 'Jesus disse: Coragem! Os discípulos ficaram em paz.',
+            marcadores_interativos: [
+              {
+                palavra: 'Coragem',
+                texto_para_audio: 'Coragem! Sou eu. Não tenham medo!',
+                tag_som: 'fala_jesus_coragem',
+              },
+            ],
           },
         ],
         quiz: SAMPLE_QUIZ,
@@ -77,37 +75,78 @@ describe('parseStoryGenerationResponse', () => {
     );
 
     expect(result.title).toBe('Mateus 14:24-27');
-    expect(result.content.pages).toHaveLength(1);
-    expect(result.content.pages[0]?.paragraphs[0]).toHaveLength(5);
-    expect(result.content.pages[0]?.paragraphs[0]?.[1]).toMatchObject({
-      type: 'interactive',
-      rotulo: 'Ouvir a tempestade',
-      tagSom: 'vento_tempestade_mar',
-    });
+    const parts = result.content.pages.flatMap((p) => p.paragraphs.flat());
+    expect(parts.some((part) => part.type === 'word' && part.value === 'vento')).toBe(true);
+    expect(parts.some((part) => part.type === 'interactive')).toBe(false);
     expect(result.quiz).toEqual(SAMPLE_QUIZ);
   });
 
-  it('rejects stories that keep the entire narrative in one texto block', () => {
+  it('drops invalid markers instead of failing the whole story', () => {
+    const result = parseStoryGenerationResponse(
+      JSON.stringify({
+        metadata: { livro: 'Mateus', capitulo: 14, versiculo: '24-27', idade_alvo: 5 },
+        conteudo_estruturado: [
+          {
+            tipo: 'texto',
+            conteudo: 'O mar estava calmo.',
+            marcadores_interativos: [
+              {
+                palavra: 'vento',
+                texto_para_audio: 'Fuuuu!',
+                tag_som: 'vento_tempestade_mar',
+              },
+            ],
+          },
+          {
+            tipo: 'texto',
+            conteudo: 'Jesus acalmou todos.',
+            marcadores_interativos: [],
+          },
+        ],
+        quiz: SAMPLE_QUIZ,
+      })
+    );
+
+    const words = result.content.pages.flatMap((p) => p.paragraphs.flat()).filter((p) => p.type === 'word');
+    expect(words).toHaveLength(0);
+    expect(result.content.pages.length).toBeGreaterThan(0);
+  });
+
+  it('still parses legacy interativo blocks for backward compatibility', () => {
+    const result = parseStoryGenerationResponse(
+      JSON.stringify({
+        metadata: { livro: 'Mateus', capitulo: 14, versiculo: '24-27', idade_alvo: 5 },
+        conteudo_estruturado: [
+          { tipo: 'texto', conteudo: 'Os amigos estavam no barco.', marcadores_interativos: [] },
+          {
+            tipo: 'interativo',
+            rotulo: 'Ouvir o vento',
+            texto_para_audio: 'Fuuuu!',
+            tag_som: 'vento_tempestade_mar',
+          },
+          { tipo: 'texto', conteudo: 'Jesus acalmou o mar.', marcadores_interativos: [] },
+        ],
+        quiz: SAMPLE_QUIZ,
+      })
+    );
+
+    const interactive = result.content.pages
+      .flatMap((p) => p.paragraphs.flat())
+      .filter((part) => part.type === 'interactive');
+    expect(interactive).toHaveLength(1);
+  });
+
+  it('rejects stories that keep the entire narrative in one oversized texto block', () => {
     expect(() =>
       parseStoryGenerationResponse(
         JSON.stringify({
-          metadata: {
-            livro: 'Jonas',
-            capitulo: 1,
-            versiculo: '1-3',
-            idade_alvo: 5,
-          },
+          metadata: { livro: 'Jonas', capitulo: 1, versiculo: '1-3', idade_alvo: 5 },
           conteudo_estruturado: [
             {
               tipo: 'texto',
               conteudo:
-                'Papai do Céu falou com Jonas. Jonas fugiu para Társis. O mar ficou bravo e a tempestade gritou muito alto.',
-            },
-            {
-              tipo: 'interativo',
-              rotulo: 'Ouça a tempestade',
-              texto_para_audio: 'Uhul!',
-              tag_som: 'tempestade_mar',
+                'Papai do Céu falou com Jonas. Jonas fugiu para Társis. O mar ficou bravo e a tempestade gritou muito alto. Jonas caiu no mar. Um peixe grande o engoliu. Três dias ele ficou dentro. Depois ele saiu e obedeceu a Deus. Jonas contou a todos sobre o amor de Deus.',
+              marcadores_interativos: [],
             },
           ],
           quiz: SAMPLE_QUIZ,
@@ -122,9 +161,14 @@ describe('parseStoryGenerationResponse — robustness', () => {
     return {
       metadata: { livro: 'Mateus', capitulo: 14, versiculo: '24-27', idade_alvo: 5 },
       conteudo_estruturado: [
-        { tipo: 'texto', conteudo: 'Os amigos estavam no barco.' },
-        { tipo: 'interativo', rotulo: 'Ouvir o vento', texto_para_audio: 'Fuuuu!', tag_som: 'vento_mar' },
-        { tipo: 'texto', conteudo: 'Jesus acalmou o mar.' },
+        {
+          tipo: 'texto',
+          conteudo: 'Os amigos estavam no barco. O vento soprava.',
+          marcadores_interativos: [
+            { palavra: 'vento', texto_para_audio: 'Fuuuu!', tag_som: 'vento_tempestade_mar' },
+          ],
+        },
+        { tipo: 'texto', conteudo: 'Jesus acalmou o mar.', marcadores_interativos: [] },
       ],
       quiz: SAMPLE_QUIZ,
       ...overrides,
@@ -150,21 +194,6 @@ describe('parseStoryGenerationResponse — robustness', () => {
     expect(result.quiz).toBeUndefined();
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
-  });
-
-  it('fills a missing rotulo from label/titulo or texto_para_audio (json_object fallback)', () => {
-    const blocks = [
-      { tipo: 'texto', conteudo: 'Os amigos estavam no barco.' },
-      { tipo: 'interativo', label: 'Ouvir o vento', texto_para_audio: 'Fuuuu!', tag_som: 'vento_mar' },
-      { tipo: 'texto', conteudo: 'Jesus falou com eles.' },
-      { tipo: 'interativo', texto_para_audio: 'Coragem, sou eu!', tag_som: 'fala_jesus' },
-      { tipo: 'texto', conteudo: 'Jesus acalmou o mar.' },
-    ];
-    const result = parseStoryGenerationResponse(JSON.stringify(story({ conteudo_estruturado: blocks })));
-    const interactive = result.content.pages
-      .flatMap((p) => p.paragraphs.flat())
-      .filter((part) => part.type === 'interactive');
-    expect(interactive.map((p) => (p as { rotulo: string }).rotulo)).toEqual(['Ouvir o vento', 'Coragem, sou eu!']);
   });
 
   it('throws LlmValidationError with a friendly message and technical details kept separately', () => {

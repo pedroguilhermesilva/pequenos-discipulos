@@ -1,5 +1,19 @@
 import type { AudioBlockKind } from '@/lib/stories/audio-play';
 
+export const KNOWN_SOUND_TAGS = [
+  'vento_tempestade_mar',
+  'som_mar_vermelho',
+  'multidao_hosana',
+  'multidao_alegria',
+  'trovao_ceu',
+  'chuva_suave',
+  'passos_areia',
+  'estrela_brilho',
+  'fogo_suave',
+  'anjos_canto',
+  'ovelhas_balido',
+] as const;
+
 const SOUND_TAG_HINTS: Record<string, string> = {
   vento_tempestade_mar:
     'strong ocean wind and waves during a storm, whoosh and splash, dramatic but child-friendly, short',
@@ -18,6 +32,10 @@ const SOUND_TAG_HINTS: Record<string, string> = {
 
 export function isSpeechSoundTag(tagSom: string): boolean {
   return tagSom.trim().toLowerCase().startsWith('fala_');
+}
+
+export function isKnownSoundTag(tagSom: string): boolean {
+  return KNOWN_SOUND_TAGS.includes(tagSom.trim().toLowerCase() as (typeof KNOWN_SOUND_TAGS)[number]);
 }
 
 export function buildSfxPromptFromTag(tagSom: string, textoParaAudio?: string): string {

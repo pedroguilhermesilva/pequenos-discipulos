@@ -33,14 +33,48 @@ export function buildSamplePedagogicalStory(
       idade_alvo: 5,
     },
     conteudo_estruturado: [
-      { tipo: 'texto', conteudo: 'Trecho 1.' },
+      {
+        tipo: 'texto',
+        conteudo: 'Os amigos de Jesus estavam no barco. O vento soprava forte.',
+        marcadores_interativos: [
+          {
+            palavra: 'vento',
+            texto_para_audio: 'Fwoooosh!',
+            tag_som: 'vento_tempestade_mar',
+          },
+        ],
+      },
+      {
+        tipo: 'texto',
+        conteudo: 'Jesus disse para não terem medo.',
+        marcadores_interativos: [],
+      },
+    ],
+    quiz: samplePedagogicalQuiz,
+    ...overrides,
+  };
+}
+
+/** Formato legado com blocos interativos separados (compatibilidade). */
+export function buildLegacyPedagogicalStory(
+  overrides: Partial<PedagogicalStoryResponse> = {}
+): PedagogicalStoryResponse {
+  return {
+    metadata: {
+      livro: 'Mateus',
+      capitulo: 14,
+      versiculo: '24-27',
+      idade_alvo: 5,
+    },
+    conteudo_estruturado: [
+      { tipo: 'texto', conteudo: 'Trecho 1.', marcadores_interativos: [] },
       {
         tipo: 'interativo',
         rotulo: 'Ouvir a tempestade',
         texto_para_audio: 'Fwoooosh!',
         tag_som: 'vento_tempestade_mar',
       },
-      { tipo: 'texto', conteudo: 'Trecho 2.' },
+      { tipo: 'texto', conteudo: 'Trecho 2.', marcadores_interativos: [] },
     ],
     quiz: samplePedagogicalQuiz,
     ...overrides,

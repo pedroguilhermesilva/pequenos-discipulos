@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { quizOptionSchema, storyQuizSchema } from '@/lib/domain/schemas';
 import {
-  pedagogicalInteractiveBlockSchema,
+  pedagogicalInteractiveMarkerSchema,
   pedagogicalMetadataSchema,
   pedagogicalStoryResponseSchema,
   pedagogicalTextBlockSchema,
@@ -31,7 +31,8 @@ function collectObjects(schema: JsonSchema, path = '$', out: Array<[string, Json
 }
 
 const root = STORY_RESPONSE_JSON_SCHEMA as unknown as JsonSchema;
-const blockVariants = root.properties!.conteudo_estruturado.items!.anyOf!;
+const textBlock = root.properties!.conteudo_estruturado.items!;
+const marker = textBlock.properties!.marcadores_interativos.items!;
 const quiz = root.properties!.quiz;
 const question = quiz.properties!.questions.items!;
 const option = question.properties!.options.items!;
@@ -55,8 +56,8 @@ describe('STORY_RESPONSE_JSON_SCHEMA (OpenAI strict structured outputs)', () => 
   it('stays in sync with the Zod schemas (same keys)', () => {
     expect(keys(root.properties!)).toEqual(keys(pedagogicalStoryResponseSchema.shape));
     expect(keys(root.properties!.metadata.properties!)).toEqual(keys(pedagogicalMetadataSchema.shape));
-    expect(keys(blockVariants[0].properties!)).toEqual(keys(pedagogicalTextBlockSchema.shape));
-    expect(keys(blockVariants[1].properties!)).toEqual(keys(pedagogicalInteractiveBlockSchema.shape));
+    expect(keys(textBlock.properties!)).toEqual(keys(pedagogicalTextBlockSchema.shape));
+    expect(keys(marker.properties!)).toEqual(keys(pedagogicalInteractiveMarkerSchema.shape));
     expect(keys(quiz.properties!)).toEqual(keys(storyQuizSchema.shape));
     expect(keys(option.properties!)).toEqual(keys(quizOptionSchema.shape));
     expect(keys(question.properties!)).toEqual(
@@ -64,10 +65,9 @@ describe('STORY_RESPONSE_JSON_SCHEMA (OpenAI strict structured outputs)', () => 
     );
   });
 
-  it('requires rotulo on every interactive block', () => {
-    expect(blockVariants[1].required).toContain('rotulo');
-    expect(blockVariants[1].properties!.tipo.enum).toEqual(['interativo']);
-    expect(blockVariants[0].properties!.tipo.enum).toEqual(['texto']);
+  it('requires marcadores_interativos on every text block', () => {
+    expect(textBlock.required).toContain('marcadores_interativos');
+    expect(textBlock.properties!.tipo.enum).toEqual(['texto']);
   });
 
   it('the shared fixture validates with Zod', () => {
@@ -80,5 +80,9 @@ describe('STORY_RESPONSE_JSON_SCHEMA (OpenAI strict structured outputs)', () => 
     const result = parseStoryGenerationResponse(JSON.stringify(STORY_RESPONSE_EXAMPLE));
     expect(result.quiz?.questions).toHaveLength(2);
     expect(result.content.pages.length).toBeGreaterThan(0);
+    const words = result.content.pages
+      .flatMap((p) => p.paragraphs.flat())
+      .filter((part) => part.type === 'word');
+    expect(words.length).toBeGreaterThan(0);
   });
 });

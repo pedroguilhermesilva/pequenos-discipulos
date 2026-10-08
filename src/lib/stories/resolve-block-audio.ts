@@ -12,6 +12,8 @@ export type StoryInteractivePart =
       type: 'word';
       value: string;
       variant?: 'default' | 'vida';
+      tagSom?: string;
+      textoParaAudio?: string;
       sfxPrompt?: string;
     }
   | {
@@ -37,6 +39,13 @@ export function resolveBlockAudioInput(part: StoryInteractivePart): EnsureBlockA
   }
 
   if (part.type === 'word') {
+    if (part.tagSom) {
+      return resolveInteractiveAudioInput({
+        tagSom: part.tagSom,
+        textoParaAudio: part.textoParaAudio ?? part.value,
+      });
+    }
+
     return {
       kind: 'sfx',
       text: part.value ?? '',

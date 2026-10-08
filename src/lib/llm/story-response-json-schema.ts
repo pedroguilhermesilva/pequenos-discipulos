@@ -22,25 +22,29 @@ const metadata = {
   additionalProperties: false,
 };
 
+const interactiveMarker = {
+  type: 'object',
+  properties: {
+    palavra: string('Palavra ou trecho que já existe no conteudo e será tocável'),
+    texto_para_audio: string('Fala ou onomatopeia a tocar'),
+    tag_som: string('minúsculas, sem acentos, com underscores, ex.: vento_tempestade_mar'),
+  },
+  required: ['palavra', 'texto_para_audio', 'tag_som'],
+  additionalProperties: false,
+};
+
 const textBlock = {
   type: 'object',
   properties: {
     tipo: { type: 'string', enum: ['texto'] },
     conteudo: string('2 a 4 frases curtas da narrativa'),
+    marcadores_interativos: {
+      type: 'array',
+      description: '0 a 2 palavras do conteudo que tocam um som (devem existir no texto)',
+      items: interactiveMarker,
+    },
   },
-  required: ['tipo', 'conteudo'],
-  additionalProperties: false,
-};
-
-const interactiveBlock = {
-  type: 'object',
-  properties: {
-    tipo: { type: 'string', enum: ['interativo'] },
-    rotulo: string('Texto curto do botão de áudio, ex.: "Ouvir o vento"'),
-    texto_para_audio: string('Fala ou onomatopeia a tocar'),
-    tag_som: string('minúsculas, sem acentos, com underscores, ex.: vento_tempestade_mar'),
-  },
-  required: ['tipo', 'rotulo', 'texto_para_audio', 'tag_som'],
+  required: ['tipo', 'conteudo', 'marcadores_interativos'],
   additionalProperties: false,
 };
 
@@ -102,8 +106,8 @@ export const STORY_RESPONSE_JSON_SCHEMA = {
     metadata,
     conteudo_estruturado: {
       type: 'array',
-      description: 'Alterna blocos "texto" e "interativo"; começa e termina com "texto"',
-      items: { anyOf: [textBlock, interactiveBlock] },
+      description: 'Blocos de texto com marcadores interativos inline (sem blocos "interativo" separados)',
+      items: textBlock,
     },
     quiz,
   },
@@ -115,14 +119,28 @@ export const STORY_RESPONSE_JSON_SCHEMA = {
 export const STORY_RESPONSE_EXAMPLE = {
   metadata: { livro: 'Mateus', capitulo: 14, versiculo: '24-27', idade_alvo: 4 },
   conteudo_estruturado: [
-    { tipo: 'texto', conteudo: 'Os amigos de Jesus estavam no barco. O vento soprava forte.' },
     {
-      tipo: 'interativo',
-      rotulo: 'Ouvir o vento',
-      texto_para_audio: 'Fuuuuu! Fuuuuu!',
-      tag_som: 'vento_tempestade_mar',
+      tipo: 'texto',
+      conteudo: 'Os amigos de Jesus estavam no barco. O vento soprava forte.',
+      marcadores_interativos: [
+        {
+          palavra: 'vento',
+          texto_para_audio: 'Fuuuuu! Fuuuuu!',
+          tag_som: 'vento_tempestade_mar',
+        },
+      ],
     },
-    { tipo: 'texto', conteudo: 'Jesus veio andando sobre a água. Ele disse: "Coragem!"' },
+    {
+      tipo: 'texto',
+      conteudo: 'Jesus veio andando sobre a água. Ele disse: "Coragem!"',
+      marcadores_interativos: [
+        {
+          palavra: 'Coragem',
+          texto_para_audio: 'Coragem! Sou eu. Não tenham medo!',
+          tag_som: 'fala_jesus_coragem',
+        },
+      ],
+    },
   ],
   quiz: {
     title: 'Vamos relembrar?',
