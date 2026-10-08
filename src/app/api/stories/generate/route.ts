@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireCurrentUser, getCurrentChildProfileId } from '@/lib/auth/get-current-user';
 import { container } from '@/lib/container';
-import { DomainError } from '@/lib/domain/errors';
+import { generationErrorResponse } from '@/lib/http/generation-error-response';
 import { generateStoryInputSchema } from '@/lib/domain/schemas';
 import { DEFAULT_BIBLE_VERSION_ID } from '@/lib/stories/bible-versions';
 
@@ -32,17 +32,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, data: result });
   } catch (error) {
-    if (error instanceof DomainError) {
-      return NextResponse.json(
-        { ok: false, code: error.code, message: error.message },
-        { status: error.code === 'GENERATION_LIMIT_EXCEEDED' ? 402 : 400 }
-      );
-    }
-
-    console.error(error);
-    return NextResponse.json(
-      { ok: false, code: 'VALIDATION_ERROR', message: 'Falha ao gerar história.' },
-      { status: 500 }
-    );
+    const { status, body } = generationErrorResponse(error);
+    return NextResponse.json(body, { status });
   }
 }

@@ -1,28 +1,21 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
-import type { AdaptationContent, StoryQuizData } from '@/lib/domain/schemas';
 import type { ContentType } from '@/lib/stories/types';
 import { contentTypeConfig } from '@/lib/stories/content-type';
 import type { AgeTier } from '@/lib/stories/age-tiers';
 import { getAgeTierFromPreferences } from '@/lib/stories/age-tiers';
 import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
 import type { UserPreferences } from '@/lib/onboarding/types';
+import { FRIENDLY_GENERATION_ERROR } from '@/lib/domain/errors';
+import {
+  readStoryGenerationResponse,
+  type StoryGenerationData,
+  type StoryGenerationOutcome,
+} from '@/lib/stories/request-story-generation';
 
-type GenerationApiResult = {
-  ok: boolean;
-  message?: string;
-  data?: {
-    userStoryId: string;
-    adaptationId: string;
-    title: string;
-    content: AdaptationContent;
-    quiz?: StoryQuizData;
-    adaptationNote?: string | null;
-  };
-};
-
-const inFlightGenerations = new Map<string, Promise<GenerationApiResult>>();
+const inFlightGenerations = new Map<string, Promise<StoryGenerationOutcome>>();
 
 function generationRequestKey(
   passageSlug: string,
@@ -66,14 +59,7 @@ interface StoryGeneratingProps {
   childProfileId?: string;
   mode?: 'initial' | 'regenerate';
   currentAdaptationId?: string;
-  onComplete: (result: {
-    userStoryId: string;
-    adaptationId: string;
-    title: string;
-    content: AdaptationContent;
-    quiz?: StoryQuizData;
-    adaptationNote?: string | null;
-  }) => void;
+  onComplete: (result: StoryGenerationData) => void;
   onError?: (message: string) => void;
 }
 
@@ -91,15 +77,31 @@ export function StoryGenerating({
   onError,
 }: StoryGeneratingProps) {
   const config = contentTypeConfig[contentType];
-  const [error, setError] = useState<string | null>(null);
-  const idempotencyKeyRef = useRef<string | null>(null);
+  const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  // Uma chave por tentativa: re-renders e remounts do StrictMode reutilizam-na (sem geração
+  // duplicada); "Tentar novamente" cria uma nova (o servidor também liberta a reserva falhada).
+  const idempotencyKeyRef = useRef<{ attempt: number; key: string } | null>(null);
+
+  // Callbacks em refs: uma nova identidade de função no pai não deve disparar outro pedido.
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onErrorRef.current = onError;
+  }, [onComplete, onError]);
+
+  const prefs: UserPreferences = { ...DEFAULT_PREFERENCES, ...preferences };
+  const ageTier: AgeTier = getAgeTierFromPreferences(prefs);
+  const bibleVersionId = prefs.bibleVersionId;
+  const languageStyle = prefs.languageStyle;
 
   useEffect(() => {
     let cancelled = false;
-    const prefs: UserPreferences = { ...DEFAULT_PREFERENCES, ...preferences };
-    const ageTier: AgeTier = getAgeTierFromPreferences(prefs);
-    const idempotencyKey = idempotencyKeyRef.current ?? createIdempotencyKey();
-    idempotencyKeyRef.current = idempotencyKey;
+    if (idempotencyKeyRef.current?.attempt !== attempt) {
+      idempotencyKeyRef.current = { attempt, key: createIdempotencyKey() };
+    }
+    const idempotencyKey = idempotencyKeyRef.current.key;
 
     async function run() {
       try {
@@ -109,7 +111,7 @@ export function StoryGenerating({
           verseTo,
           contentType,
           ageTier,
-          prefs,
+          { ...DEFAULT_PREFERENCES, bibleVersionId, languageStyle },
           mode,
           currentAdaptationId,
           idempotencyKey
@@ -121,11 +123,11 @@ export function StoryGenerating({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               passageSlug,
-              bibleVersionId: prefs.bibleVersionId,
+              bibleVersionId,
               verseFrom,
               verseTo,
               ageTier,
-              languageStyle: prefs.languageStyle,
+              languageStyle,
               contentType,
               childProfileId,
               mode,
@@ -133,30 +135,28 @@ export function StoryGenerating({
               idempotencyKey,
             }),
           })
-            .then((response) => response.json() as Promise<GenerationApiResult>)
+            .then(readStoryGenerationResponse)
             .finally(() => {
               inFlightGenerations.delete(requestKey);
             });
           inFlightGenerations.set(requestKey, pending);
         }
 
-        const json = await pending;
-
+        const outcome = await pending;
         if (cancelled) return;
 
-        if (!json.ok || !json.data) {
-          const message = json.message ?? 'Não foi possível gerar a história.';
-          setError(message);
-          onError?.(message);
+        if (!outcome.ok) {
+          setError({ message: outcome.message, retryable: outcome.retryable });
+          onErrorRef.current?.(outcome.message);
           return;
         }
 
-        onComplete(json.data);
+        onCompleteRef.current(outcome.data);
       } catch {
         if (cancelled) return;
-        const message = 'Erro de rede ao gerar a história.';
-        setError(message);
-        onError?.(message);
+        const message = FRIENDLY_GENERATION_ERROR;
+        setError({ message, retryable: true });
+        onErrorRef.current?.(message);
       }
     }
 
@@ -165,30 +165,38 @@ export function StoryGenerating({
       cancelled = true;
     };
   }, [
+    attempt,
+    ageTier,
+    bibleVersionId,
     childProfileId,
     contentType,
     currentAdaptationId,
+    languageStyle,
     mode,
-    onComplete,
-    onError,
     passageSlug,
-    preferences,
     verseFrom,
     verseTo,
   ]);
+
+  function handleRetry() {
+    setError(null);
+    setAttempt((value) => value + 1);
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in px-4">
       <div className="relative mb-8">
         <div className="w-24 h-24 rounded-full bg-vida/10 flex items-center justify-center">
           <span
-            className="material-symbols-outlined text-vida text-5xl animate-shimmer"
+            className={`material-symbols-outlined text-5xl ${error ? 'text-oliva' : 'text-vida animate-shimmer'}`}
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
-            {config.icon}
+            {error ? 'sentiment_dissatisfied' : config.icon}
           </span>
         </div>
-        <div className="absolute -inset-2 rounded-full border-2 border-vida/20 border-t-vida animate-spin" />
+        {!error && (
+          <div className="absolute -inset-2 rounded-full border-2 border-vida/20 border-t-vida animate-spin" />
+        )}
       </div>
 
       <h2 className="font-display text-2xl md:text-3xl font-bold text-tinta mb-3">
@@ -200,7 +208,7 @@ export function StoryGenerating({
       </h2>
       <p className="text-oliva text-lg max-w-md mb-6">
         {error ? (
-          error
+          error.message
         ) : mode === 'regenerate' ? (
           <>
             Buscando outra adaptação de <strong className="text-tinta">{storyTitle}</strong> antes de
@@ -218,6 +226,27 @@ export function StoryGenerating({
       {!error && (
         <div className="w-full max-w-xs h-2 bg-borda/60 rounded-full overflow-hidden">
           <div className="h-full bg-vida rounded-full animate-[shimmer_2s_ease-in-out_infinite] w-2/3" />
+        </div>
+      )}
+
+      {error && (
+        <div className="flex flex-col sm:flex-row items-center gap-3" role="alert">
+          {error.retryable && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-vida text-white font-bold hover:bg-vida/90 transition"
+            >
+              <span className="material-symbols-outlined text-xl">refresh</span>
+              Tentar novamente
+            </button>
+          )}
+          <Link
+            href="/nova-historia"
+            className="px-6 py-3 rounded-xl text-oliva font-bold bg-pergaminho-escuro hover:bg-pergaminho-escuro/80 transition"
+          >
+            Escolher outra passagem
+          </Link>
         </div>
       )}
     </div>

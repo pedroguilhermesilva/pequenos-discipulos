@@ -15,6 +15,7 @@ import {
   type EnsureBlockAudioInput,
   type StoryInteractivePart,
 } from '@/lib/stories/resolve-block-audio';
+import { ttsCacheBlockKey } from '@/lib/providers/google/google-tts-config';
 
 export type { EnsureBlockAudioInput };
 
@@ -68,16 +69,26 @@ export class AudioService {
     private readonly prisma: PrismaClient,
     private readonly tts: TtsProvider,
     private readonly sfx: SfxProvider,
-    private readonly storage: StorageProvider
+    private readonly storage: StorageProvider,
+    private readonly ttsCacheSuffix: string
   ) {}
+
+  private resolveCacheBlockKey(blockKey: string, input: EnsureBlockAudioInput): string {
+    return input.kind === 'sfx' ? blockKey : ttsCacheBlockKey(blockKey, this.ttsCacheSuffix);
+  }
+
+  private storyNarrationCacheKey(): string {
+    return ttsCacheBlockKey(STORY_NARRATION_BLOCK_KEY, this.ttsCacheSuffix);
+  }
 
   async ensureBlockAudio(
     adaptationId: string,
     blockKey: string,
     input: EnsureBlockAudioInput
   ) {
+    const cacheBlockKey = this.resolveCacheBlockKey(blockKey, input);
     const existing = await this.prisma.audioAsset.findUnique({
-      where: { adaptationId_blockKey: { adaptationId, blockKey } },
+      where: { adaptationId_blockKey: { adaptationId, blockKey: cacheBlockKey } },
     });
 
     if (existing) {
@@ -96,13 +107,13 @@ export class AudioService {
         : await this.tts.generateSpeech({ text: input.text, blockKey });
 
     const extension = extensionForContentType(generated.contentType);
-    const relativePath = `audio/${adaptationId}/${blockKey}${extension}`;
+    const relativePath = `audio/${adaptationId}/${cacheBlockKey}${extension}`;
     await this.storage.save(relativePath, generated.buffer, generated.contentType);
 
     const asset = await this.prisma.audioAsset.create({
       data: {
         adaptationId,
-        blockKey,
+        blockKey: cacheBlockKey,
         filePath: relativePath,
         durationMs: generated.durationMs,
       },
@@ -253,9 +264,10 @@ export class AudioService {
       );
     }
 
+    const narrationBlockKey = this.storyNarrationCacheKey();
     const existing = await this.prisma.audioAsset.findUnique({
       where: {
-        adaptationId_blockKey: { adaptationId, blockKey: STORY_NARRATION_BLOCK_KEY },
+        adaptationId_blockKey: { adaptationId, blockKey: narrationBlockKey },
       },
     });
 
@@ -270,20 +282,20 @@ export class AudioService {
       });
 
       if (!generated.alignment) {
-        throw new DomainError('TTS_NOT_CONFIGURED', 'A narração foi gerada sem timestamps.');
+        console.error('[Audio] Narração gerada sem alinhamento por palavra; áudio tocará sem destaque.');
       }
 
       const extension = extensionForContentType(generated.contentType);
-      relativePath = `audio/${adaptationId}/${STORY_NARRATION_BLOCK_KEY}${extension}`;
+      relativePath = `audio/${adaptationId}/${narrationBlockKey}${extension}`;
       await this.storage.save(relativePath, generated.buffer, generated.contentType);
       durationMs = generated.durationMs;
-      alignment = generated.alignment;
+      alignment = generated.alignment ?? alignment;
 
       if (!existing) {
         await this.prisma.audioAsset.create({
           data: {
             adaptationId,
-            blockKey: STORY_NARRATION_BLOCK_KEY,
+            blockKey: narrationBlockKey,
             filePath: relativePath,
             durationMs: generated.durationMs,
           },
@@ -292,8 +304,8 @@ export class AudioService {
     }
 
     const url = this.storage.getPublicUrl(relativePath!);
-    const slices = sliceStoryAlignment(alignment, storyText.pages);
-    const content = this.contentWithStoryNarration(parsed, url, alignment, slices);
+    const slices = alignment ? sliceStoryAlignment(alignment, storyText.pages) : [];
+    const content = this.contentWithStoryNarration(parsed, url, alignment ?? undefined, slices);
 
     await this.prisma.passageAdaptation.update({
       where: { id: adaptationId },
@@ -301,15 +313,15 @@ export class AudioService {
     });
 
     const current = slices.find((slice) => slice.pageIndex === pageIndex);
-    if (!current) {
+    if (!current && alignment) {
       throw new DomainError('VALIDATION_ERROR', 'Esta página não tem texto para narrar.');
     }
 
     return {
       url,
-      alignment: current.alignment,
-      startSeconds: current.startSeconds,
-      endSeconds: current.endSeconds,
+      alignment: current?.alignment,
+      startSeconds: current?.startSeconds ?? 0,
+      endSeconds: current?.endSeconds ?? 0,
       durationMs,
       pages: slices,
     };
@@ -323,6 +335,7 @@ export class AudioService {
     const sharedUrl = parsed.storyNarrationAudioPath;
     const fullAlignment = parsed.storyNarrationAlignment;
     if (!sharedUrl || !fullAlignment) return null;
+    if (parsed.storyNarrationVoice !== this.ttsCacheSuffix) return null;
 
     const slices = sliceStoryAlignment(fullAlignment, pageRanges);
     const current = slices.find((slice) => slice.pageIndex === pageIndex);
@@ -350,6 +363,7 @@ export class AudioService {
       ...parsed,
       storyNarrationAudioPath: url,
       storyNarrationAlignment: alignment,
+      storyNarrationVoice: this.ttsCacheSuffix,
       pages: parsed.pages.map((currentPage, index) => {
         const slice = slicesByPage.get(index);
         if (!slice) return currentPage;

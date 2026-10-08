@@ -1,6 +1,7 @@
 import { fromPrismaContentType } from '@/lib/domain/mappers';
 import type { UserStoryRepository } from '@/lib/repositories/interfaces/user-story.repository';
 import type { FavoriteItem } from '@/lib/stories/types';
+import { formatAdaptationReference } from '@/lib/stories/bible-passages';
 
 export class FavoritesService {
   constructor(private readonly userStories: UserStoryRepository) {}
@@ -12,7 +13,12 @@ export class FavoritesService {
       id: story.id,
       title: story.adaptation.title,
       contentType: fromPrismaContentType(story.adaptation.contentType),
-      originalReference: story.adaptation.passage.reference,
+      originalReference: formatAdaptationReference(
+        story.adaptation.passage.slug,
+        story.adaptation.verseFrom,
+        story.adaptation.verseTo,
+        story.adaptation.passage.reference
+      ),
       imageUrl: story.adaptation.imageUrl,
       readingGoal: null,
       languageStyle: story.adaptation.languageStyle,

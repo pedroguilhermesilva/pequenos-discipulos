@@ -10,13 +10,17 @@ import {
   sliceAlignmentByCharRange,
   sliceStoryAlignment,
 } from '@/lib/stories/narration-alignment';
+import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
 
-function alignmentFromText(text: string, charDuration = 0.08) {
-  const characters = [...text];
+function alignmentFromText(text: string, wordDuration = 0.35) {
+  const tokens = tokenizeNarrationWords(text);
+
   return {
-    characters,
-    characterStartTimesSeconds: characters.map((_, index) => index * charDuration),
-    characterEndTimesSeconds: characters.map((_, index) => (index + 1) * charDuration),
+    words: tokens.map((token) => token.text),
+    wordStartTimesSeconds: tokens.map((_, index) => index * wordDuration),
+    wordEndTimesSeconds: tokens.map((_, index) => (index + 1) * wordDuration),
+    wordCharStarts: tokens.map((token) => token.charStart),
+    wordCharEnds: tokens.map((token) => token.charEnd),
   };
 }
 
@@ -154,23 +158,27 @@ describe('extractStoryNarrationText', () => {
 });
 
 describe('narration alignment helpers', () => {
-  it('groups characters into words with timing', () => {
+  it('exposes word timings directly from word-based alignment', () => {
     const words = alignmentToWords({
-      characters: ['O', 'l', 'á', ' ', 'D', 'e', 'u', 's'],
-      characterStartTimesSeconds: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
-      characterEndTimesSeconds: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+      words: ['Olá', 'Deus'],
+      wordStartTimesSeconds: [0, 0.4],
+      wordEndTimesSeconds: [0.4, 0.9],
+      wordCharStarts: [0, 4],
+      wordCharEnds: [3, 8],
     });
 
     expect(words).toHaveLength(2);
     expect(words[0]?.text).toBe('Olá');
-    expect(words[1]?.text).toBe('Deus');
+    expect(words[1]?.end).toBe(0.9);
   });
 
   it('finds the active word for the current playback time', () => {
     const words = alignmentToWords({
-      characters: ['A', ' ', 'B'],
-      characterStartTimesSeconds: [0, 0.2, 0.3],
-      characterEndTimesSeconds: [0.2, 0.3, 0.5],
+      words: ['A', 'B'],
+      wordStartTimesSeconds: [0, 0.3],
+      wordEndTimesSeconds: [0.3, 0.6],
+      wordCharStarts: [0, 2],
+      wordCharEnds: [1, 3],
     });
 
     expect(findActiveWordIndex(words, 0.35)).toBe(1);
@@ -180,9 +188,9 @@ describe('narration alignment helpers', () => {
     const alignment = alignmentFromText('Página um. Página dois.');
     const sliced = sliceAlignmentByCharRange(alignment, 11, 23);
 
-    expect(sliced?.alignment.characters.join('')).toBe('Página dois.');
-    expect(sliced?.startSeconds).toBe(11 * 0.08);
-    expect(sliced?.endSeconds).toBe(23 * 0.08);
+    expect(sliced?.alignment.words).toEqual(['Página', 'dois.']);
+    expect(sliced?.startSeconds).toBe(2 * 0.35);
+    expect(sliced?.endSeconds).toBe(4 * 0.35);
   });
 
   it('cuts a full-story alignment into contiguous page slices', () => {

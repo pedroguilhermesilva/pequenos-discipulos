@@ -7,7 +7,7 @@ import type {
 import type { StorySummary } from '@/lib/stories';
 import { STORY_IMAGE } from '@/lib/stories';
 import { getAgeTierLabel } from '@/lib/stories/age-tiers';
-import { parsePassageSourceVerses } from '@/lib/stories/bible-passages';
+import { formatAdaptationReference, parsePassageSourceVerses } from '@/lib/stories/bible-passages';
 import type { UserStoryDetail } from '@/lib/repositories/interfaces/user-story.repository';
 
 export class LibraryService {
@@ -45,7 +45,12 @@ export class LibraryService {
         id: story.id,
         title: story.adaptation.title,
         ageGroup: getAgeTierLabel(fromPrismaAgeTier(story.adaptation.ageTier)),
-        passage: story.adaptation.passage.reference,
+        passage: formatAdaptationReference(
+          story.adaptation.passage.slug,
+          verseFrom,
+          verseTo,
+          story.adaptation.passage.reference
+        ),
         progress,
         totalPages,
         currentPage,

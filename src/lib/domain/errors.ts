@@ -5,6 +5,7 @@ export type DomainErrorCode =
   | 'BIBLE_TEXT_FETCH_ERROR'
   | 'LLM_VALIDATION_ERROR'
   | 'LLM_NOT_CONFIGURED'
+  | 'LLM_UNAVAILABLE'
   | 'TTS_NOT_CONFIGURED'
   | 'SFX_NOT_CONFIGURED'
   | 'UNAUTHORIZED'
@@ -49,10 +50,17 @@ export class BibleTextFetchError extends DomainError {
   }
 }
 
+/** Mensagem mostrada ao utilizador quando a geração da história falha (nunca detalhes técnicos). */
+export const FRIENDLY_GENERATION_ERROR = 'Não conseguimos criar a história agora. Tente novamente.';
+
 export class LlmValidationError extends DomainError {
-  constructor(message = 'A IA devolveu conteúdo inválido.') {
+  /** Detalhe técnico (ex.: caminhos Zod) — só para logs do servidor, nunca para o utilizador. */
+  readonly details?: string;
+
+  constructor(message = 'A IA devolveu conteúdo inválido.', details?: string) {
     super('LLM_VALIDATION_ERROR', message);
     this.name = 'LlmValidationError';
+    this.details = details;
   }
 }
 

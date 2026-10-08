@@ -1,13 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  buildTtsCacheSuffix,
+  DEFAULT_GOOGLE_TTS_VOICE,
+  ttsCacheBlockKey,
+} from '@/lib/providers/google/google-tts-config';
 import { AudioService, STORY_NARRATION_BLOCK_KEY } from '@/lib/services/audio.service';
 import type { AdaptationContent } from '@/lib/domain/schemas';
 
-function alignmentFromText(text: string, charDuration = 0.08) {
-  const characters = [...text];
+import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
+
+const TTS_CACHE_SUFFIX = buildTtsCacheSuffix({
+  provider: 'neural2',
+  voice: DEFAULT_GOOGLE_TTS_VOICE,
+});
+const NARRATION_CACHE_KEY = ttsCacheBlockKey(STORY_NARRATION_BLOCK_KEY, TTS_CACHE_SUFFIX);
+
+function alignmentFromText(text: string, wordDuration = 0.35) {
+  const tokens = tokenizeNarrationWords(text);
+
   return {
-    characters,
-    characterStartTimesSeconds: characters.map((_, index) => index * charDuration),
-    characterEndTimesSeconds: characters.map((_, index) => (index + 1) * charDuration),
+    words: tokens.map((token) => token.text),
+    wordStartTimesSeconds: tokens.map((_, index) => index * wordDuration),
+    wordEndTimesSeconds: tokens.map((_, index) => (index + 1) * wordDuration),
+    wordCharStarts: tokens.map((token) => token.charStart),
+    wordCharEnds: tokens.map((token) => token.charEnd),
   };
 }
 
@@ -18,6 +34,16 @@ function twoPageContent(): AdaptationContent {
       { paragraphs: [[{ type: 'text', value: 'Página dois.' }]] },
     ],
   };
+}
+
+function createService(
+  prisma: unknown,
+  tts: unknown,
+  sfx: unknown,
+  storage: unknown,
+  cacheSuffix = TTS_CACHE_SUFFIX
+) {
+  return new AudioService(prisma as never, tts as never, sfx as never, storage as never, cacheSuffix);
 }
 
 describe('AudioService story narration', () => {
@@ -59,7 +85,7 @@ describe('AudioService story narration', () => {
     prisma.audioAsset.findUnique.mockResolvedValue(null);
     prisma.audioAsset.create.mockResolvedValue({
       id: 'asset-1',
-      filePath: `audio/ad-1/${STORY_NARRATION_BLOCK_KEY}.mp3`,
+      filePath: `audio/ad-1/${NARRATION_CACHE_KEY}.mp3`,
     });
     tts.generateSpeechWithTimestamps.mockResolvedValue({
       buffer: Buffer.from('audio'),
@@ -68,9 +94,14 @@ describe('AudioService story narration', () => {
       alignment: alignmentFromText(fullText),
     });
 
-    const service = new AudioService(prisma as never, tts, sfx as never, storage as never);
+    const service = createService(prisma, tts, sfx, storage);
     const result = await service.ensurePageNarration('ad-1', 1);
 
+    expect(prisma.audioAsset.findUnique).toHaveBeenCalledWith({
+      where: {
+        adaptationId_blockKey: { adaptationId: 'ad-1', blockKey: NARRATION_CACHE_KEY },
+      },
+    });
     expect(tts.generateSpeechWithTimestamps).toHaveBeenCalledTimes(1);
     expect(tts.generateSpeechWithTimestamps).toHaveBeenCalledWith({
       text: fullText,
@@ -83,6 +114,7 @@ describe('AudioService story narration', () => {
         data: expect.objectContaining({
           content: expect.objectContaining({
             storyNarrationAudioPath: expect.any(String),
+            storyNarrationVoice: TTS_CACHE_SUFFIX,
             pages: expect.arrayContaining([
               expect.objectContaining({
                 narrationAudioPath: expect.any(String),
@@ -105,16 +137,75 @@ describe('AudioService story narration', () => {
         ...twoPageContent(),
         storyNarrationAudioPath: '/files/story.mp3',
         storyNarrationAlignment: alignment,
+        storyNarrationVoice: TTS_CACHE_SUFFIX,
       },
     });
 
-    const service = new AudioService(prisma as never, tts, sfx as never, storage as never);
+    const service = createService(prisma, tts, sfx, storage);
     const result = await service.ensurePageNarration('ad-1', 0);
 
     expect(tts.generateSpeechWithTimestamps).not.toHaveBeenCalled();
     expect(prisma.audioAsset.findUnique).not.toHaveBeenCalled();
     expect(result.url).toBe('/files/story.mp3');
     expect(result.pages).toHaveLength(2);
+  });
+
+  it('plays narration without highlight when alignment is missing', async () => {
+    const content = twoPageContent();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    prisma.passageAdaptation.findUnique.mockResolvedValue({
+      id: 'ad-1',
+      content,
+    });
+    prisma.audioAsset.findUnique.mockResolvedValue(null);
+    prisma.audioAsset.create.mockResolvedValue({
+      id: 'asset-1',
+      filePath: `audio/ad-1/${NARRATION_CACHE_KEY}.mp3`,
+    });
+    tts.generateSpeechWithTimestamps.mockResolvedValue({
+      buffer: Buffer.from('audio'),
+      contentType: 'audio/mpeg',
+      durationMs: 1840,
+      alignment: undefined,
+    });
+
+    const service = createService(prisma, tts, sfx, storage);
+    const result = await service.ensurePageNarration('ad-1', 0);
+
+    expect(result.url).toContain('audio/ad-1/');
+    expect(result.alignment).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it('regenerates narration when stored voice differs from configured voice', async () => {
+    const fullText = 'Página um. Página dois.';
+    const alignment = alignmentFromText(fullText);
+    prisma.passageAdaptation.findUnique.mockResolvedValue({
+      id: 'ad-1',
+      content: {
+        ...twoPageContent(),
+        storyNarrationAudioPath: '/files/story-wavenet.mp3',
+        storyNarrationAlignment: alignment,
+        storyNarrationVoice: 'pt-BR-Wavenet-A',
+      },
+    });
+    prisma.audioAsset.findUnique.mockResolvedValue(null);
+    prisma.audioAsset.create.mockResolvedValue({
+      id: 'asset-1',
+      filePath: `audio/ad-1/${NARRATION_CACHE_KEY}.mp3`,
+    });
+    tts.generateSpeechWithTimestamps.mockResolvedValue({
+      buffer: Buffer.from('audio'),
+      contentType: 'audio/mpeg',
+      durationMs: 1840,
+      alignment,
+    });
+
+    const service = createService(prisma, tts, sfx, storage);
+    await service.ensurePageNarration('ad-1', 0);
+
+    expect(tts.generateSpeechWithTimestamps).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -160,9 +251,11 @@ describe('AudioService.prepareAdaptationAudio', () => {
       contentType: 'audio/mpeg',
       durationMs: 1200,
       alignment: {
-        characters: ['O', 'i'],
-        characterStartTimesSeconds: [0, 0.1],
-        characterEndTimesSeconds: [0.1, 0.2],
+        words: ['Oi'],
+        wordStartTimesSeconds: [0],
+        wordEndTimesSeconds: [0.2],
+        wordCharStarts: [0],
+        wordCharEnds: [2],
       },
     });
     vi.mocked(storage.save).mockResolvedValue('saved');
@@ -202,7 +295,7 @@ describe('AudioService.prepareAdaptationAudio', () => {
       },
     });
 
-    const service = new AudioService(prisma as never, tts as never, sfx as never, storage as never);
+    const service = createService(prisma, tts, sfx, storage);
     await service.prepareAdaptationAudio('adaptation-1');
 
     expect(sfx.generateSound).toHaveBeenCalledTimes(1);
@@ -227,7 +320,7 @@ describe('AudioService.prepareAdaptationAudio', () => {
                       rotulo: 'Ouvir Jesus',
                       textoParaAudio: 'Coragem!',
                       tagSom: 'fala_jesus_coragem',
-                      audioPath: '/api/storage/audio/adaptation-1/p0-par0-part2.mp3',
+                      audioPath: `/api/storage/audio/adaptation-1/p0-par0-part2@${TTS_CACHE_SUFFIX}.mp3`,
                     },
                   ],
                 ],
@@ -260,7 +353,7 @@ describe('AudioService.prepareAdaptationAudio', () => {
       },
     });
 
-    const service = new AudioService(prisma as never, tts as never, sfx as never, storage as never);
+    const service = createService(prisma, tts, sfx, storage);
     await service.prepareAdaptationAudio('adaptation-1');
 
     expect(sfx.generateSound).not.toHaveBeenCalled();
@@ -278,7 +371,7 @@ describe('AudioService.prepareAdaptationAudio', () => {
     prisma.audioAsset.findUnique.mockResolvedValue(null);
     prisma.audioAsset.create.mockResolvedValue({
       id: 'asset-1',
-      filePath: `audio/ad-1/${STORY_NARRATION_BLOCK_KEY}.mp3`,
+      filePath: `audio/ad-1/${NARRATION_CACHE_KEY}.mp3`,
     });
     tts.generateSpeechWithTimestamps.mockResolvedValue({
       buffer: Buffer.from('audio'),
@@ -287,7 +380,7 @@ describe('AudioService.prepareAdaptationAudio', () => {
       alignment: alignmentFromText('Página um. Página dois.'),
     });
 
-    const service = new AudioService(prisma as never, tts, sfx as never, storage as never);
+    const service = createService(prisma, tts, sfx, storage);
     await service.ensurePageNarration('ad-1', 0);
 
     const ttsCall = vi.mocked(tts.generateSpeechWithTimestamps).mock.calls[0]?.[0];
@@ -307,7 +400,7 @@ describe('AudioService.prepareAdaptationAudio', () => {
       },
     });
 
-    const service = new AudioService(prisma as never, tts as never, sfx as never, storage as never);
+    const service = createService(prisma, tts, sfx, storage);
     await service.prepareAdaptationAudio('adaptation-audio');
 
     expect(tts.generateSpeechWithTimestamps).toHaveBeenCalledTimes(1);
