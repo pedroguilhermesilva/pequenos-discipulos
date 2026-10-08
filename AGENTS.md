@@ -35,7 +35,11 @@ Comparativo de vozes pt-BR: `docs/google-tts-voices-pt-br.md`.
 
 ## Geração de histórias
 
-`StoryGenerationService`: cache-first (até 3 versões de outros utilizadores, ordenadas por `voteScore`) → LLM. Modo `regenerate` via botão “Gerar novamente”.
+`StoryGenerationService`: cache-first (até 3 versões **aprovadas** de outros utilizadores, ordenadas por `voteScore`) → LLM. Modo `regenerate` via botão “Gerar novamente”.
+
+## Moderação comunitária
+
+Partilha com a comunidade passa por `ModerationService` (moderação OpenAI + revisão LLM). Admin: `/admin/moderacao` (coluna `User.isAdmin` na BD). Só versões `community`/`as_default` entram no cache.
 
 ## Testes locais (dev)
 

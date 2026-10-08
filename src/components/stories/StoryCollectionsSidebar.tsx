@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getStoryHref, type StorySummary } from '@/lib/stories';
 import { getChildStoriesAction } from '@/lib/stories/library-actions';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
@@ -13,9 +14,11 @@ interface StoryCollectionsSidebarProps {
 }
 
 type CommunityVersion = {
+  id: string;
   title: string;
   rating: number;
   excerpt: string;
+  status: string;
 };
 
 const PREVIEW_LIMIT = 3;
@@ -58,6 +61,9 @@ export function StoryCollectionsSidebar({
   childName = 'Davi',
   adaptationId,
 }: StoryCollectionsSidebarProps) {
+  const queryClient = useQueryClient();
+  const [reportingId, setReportingId] = useState<string | null>(null);
+  const [reportMessage, setReportMessage] = useState<string | null>(null);
   const { activeProfile } = useChildProfiles();
   const { data: childStories = [] } = useQuery({
     queryKey: ['child-stories', activeProfile?.id ?? 'none'],
@@ -73,19 +79,58 @@ export function StoryCollectionsSidebar({
       if (!response.ok) return [];
       const json = (await response.json()) as {
         ok: boolean;
-        data?: Array<{ title: string; voteScore: number; adaptationNote?: string | null }>;
+        data?: Array<{
+          id: string;
+          title: string;
+          voteScore: number;
+          adaptationNote?: string | null;
+          status: string;
+        }>;
       };
       if (!json.ok || !json.data?.length) return [];
       return json.data.map((item) => ({
+        id: item.id,
         title: item.title,
         rating: item.voteScore,
-        excerpt: item.adaptationNote ?? 'Versão da comunidade',
+        excerpt: item.adaptationNote ?? 'Versão aprovada pela comunidade',
+        status: item.status,
       }));
     },
     enabled: Boolean(adaptationId),
   });
 
   const { allItems, previewItems } = buildPreviewItems(childStories, currentStory);
+
+  const handleReport = async (versionId: string) => {
+    setReportingId(versionId);
+    setReportMessage(null);
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adaptationId: versionId }),
+      });
+      const json = (await response.json()) as {
+        ok: boolean;
+        data?: { withdrawn: boolean };
+        message?: string;
+      };
+      if (!response.ok || !json.ok) {
+        setReportMessage(json.message ?? 'Não foi possível registrar a denúncia.');
+        return;
+      }
+      setReportMessage(
+        json.data?.withdrawn
+          ? 'Obrigado. Esta versão foi retirada da comunidade.'
+          : 'Denúncia registrada. Obrigado por ajudar a cuidar da comunidade.'
+      );
+      await queryClient.invalidateQueries({ queryKey: ['community-versions', adaptationId ?? 'none'] });
+    } catch {
+      setReportMessage('Falha de rede ao denunciar.');
+    } finally {
+      setReportingId(null);
+    }
+  };
 
   return (
     <aside className="space-y-4">
@@ -148,20 +193,32 @@ export function StoryCollectionsSidebar({
           Coexistem múltiplas adaptações para o mesmo trecho. A comunidade define o padrão.
         </p>
 
+        {reportMessage ? (
+          <p className="text-xs text-oliva bg-pergaminho-escuro/60 rounded-lg px-3 py-2">{reportMessage}</p>
+        ) : null}
+
         {communityVersions.length > 0 ? (
           <div className="space-y-2 pt-1">
             {communityVersions.map((version) => (
-              <button
-                key={version.title}
-                type="button"
-                className="w-full text-left p-3 rounded-livro border border-borda hover:border-laranja/40 transition text-xs space-y-1 bg-pergaminho-escuro/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja"
+              <div
+                key={version.id}
+                className="w-full text-left p-3 rounded-livro border border-borda bg-pergaminho-escuro/30 text-xs space-y-2"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-tinta">{version.title}</span>
-                  <span className="text-laranja font-bold">★ {version.rating}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-tinta truncate">{version.title}</span>
+                  <span className="text-laranja font-bold shrink-0">★ {version.rating}</span>
                 </div>
                 <p className="text-oliva text-[11px] line-clamp-2">{version.excerpt}</p>
-              </button>
+                <button
+                  type="button"
+                  disabled={reportingId === version.id}
+                  onClick={() => void handleReport(version.id)}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-oliva hover:text-laranja transition disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja rounded"
+                >
+                  <span className="material-symbols-outlined text-sm">flag</span>
+                  {reportingId === version.id ? 'Enviando...' : 'Denunciar'}
+                </button>
+              </div>
             ))}
           </div>
         ) : (

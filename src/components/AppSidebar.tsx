@@ -9,19 +9,31 @@ import { SidebarPremiumTeaser } from '@/components/sidebar/SidebarPremiumTeaser'
 import { Logo } from '@/components/ui/Logo';
 import { performClientSignOut } from '@/lib/auth/sign-out-client';
 import { cn } from '@/lib/cn';
-import { appNavItems, getActiveNavId } from '@/lib/app-nav';
+import { buildAppNavItems, getActiveNavId } from '@/lib/app-nav';
+import type { AppNavContext } from '@/lib/app-nav-context';
 
 interface AppSidebarProps {
   open: boolean;
   collapsed: boolean;
+  navContext: AppNavContext;
   onClose: () => void;
   onToggleCollapse: () => void;
 }
 
-export function AppSidebar({ open, collapsed, onClose, onToggleCollapse }: AppSidebarProps) {
+export function AppSidebar({
+  open,
+  collapsed,
+  navContext,
+  onClose,
+  onToggleCollapse,
+}: AppSidebarProps) {
   const pathname = usePathname();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const activeId = getActiveNavId(pathname);
+  const navItems = buildAppNavItems({
+    isAdmin: navContext.isAdmin,
+    pendingManualReviewCount: navContext.pendingManualReviewCount,
+  });
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
@@ -102,7 +114,7 @@ export function AppSidebar({ open, collapsed, onClose, onToggleCollapse }: AppSi
             className={cn('flex flex-col gap-1', collapsed && 'w-full items-center')}
             aria-label="Navegação principal"
           >
-            {appNavItems.map((item) => {
+            {navItems.map((item) => {
               const isActive = item.id === activeId;
               return (
                 <Link
@@ -112,15 +124,31 @@ export function AppSidebar({ open, collapsed, onClose, onToggleCollapse }: AppSi
                   title={collapsed ? item.label : undefined}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'flex items-center rounded-livro transition-colors text-sm font-semibold',
+                    'flex items-center rounded-livro transition-colors text-sm font-semibold relative',
                     collapsed ? 'justify-center p-2.5' : 'gap-3 px-4 py-3',
                     isActive
                       ? 'bg-laranja-suave text-laranja'
                       : 'text-tinta hover:bg-pergaminho-escuro'
                   )}
                 >
-                  <span className="material-symbols-outlined">{item.icon}</span>
-                  {!collapsed && item.label}
+                  <span className="material-symbols-outlined relative">
+                    {item.icon}
+                    {collapsed && item.badgeCount ? (
+                      <span className="absolute -top-1 -right-1 min-w-[0.85rem] h-[0.85rem] px-0.5 rounded-full bg-laranja text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                        {item.badgeCount > 9 ? '9+' : item.badgeCount}
+                      </span>
+                    ) : null}
+                  </span>
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1">{item.label}</span>
+                      {item.badgeCount ? (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-laranja text-white text-[10px] font-bold flex items-center justify-center">
+                          {item.badgeCount > 99 ? '99+' : item.badgeCount}
+                        </span>
+                      ) : null}
+                    </>
+                  )}
                 </Link>
               );
             })}

@@ -4,8 +4,15 @@ import React, { useEffect, useState } from 'react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { AppProfileGuard } from '@/components/profiles/AppProfileGuard';
 import { MobileMenuButton } from '@/components/ui/MobileMenuButton';
+import { getAppNavContextAction } from '@/lib/app-nav-actions';
+import type { AppNavContext } from '@/lib/app-nav-context';
 
 const SIDEBAR_COLLAPSED_KEY = 'pequenos-discipulos-sidebar-collapsed';
+
+const defaultNavContext: AppNavContext = {
+  isAdmin: false,
+  pendingManualReviewCount: 0,
+};
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -14,10 +21,15 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [navContext, setNavContext] = useState<AppNavContext>(defaultNavContext);
 
   useEffect(() => {
     const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
     if (stored === 'true') setSidebarCollapsed(true);
+  }, []);
+
+  useEffect(() => {
+    void getAppNavContextAction().then(setNavContext);
   }, []);
 
   const toggleSidebarCollapsed = () => {
@@ -35,6 +47,7 @@ export function AppShell({ children }: AppShellProps) {
           <AppSidebar
             open={sidebarOpen}
             collapsed={sidebarCollapsed}
+            navContext={navContext}
             onClose={() => setSidebarOpen(false)}
             onToggleCollapse={toggleSidebarCollapsed}
           />

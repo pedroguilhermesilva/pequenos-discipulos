@@ -3,17 +3,20 @@ import {
   DomainError,
   UnauthorizedError,
 } from '@/lib/domain/errors';
+import { COMMUNITY_VISIBLE_STATUSES } from '@/lib/moderation/constants';
+import type { ModerationService } from '@/lib/services/moderation.service';
 import type { AdaptationRepository } from '@/lib/repositories/interfaces/adaptation.repository';
 import type { UserStoryRepository } from '@/lib/repositories/interfaces/user-story.repository';
 import type { VoteRepository } from '@/lib/repositories/interfaces/vote.repository';
 
-const VOTABLE_STATUSES = new Set(['community', 'as_default', 'family_approved']);
+const VOTABLE_STATUSES = new Set(COMMUNITY_VISIBLE_STATUSES);
 
 export class VoteService {
   constructor(
     private readonly votes: VoteRepository,
     private readonly adaptations: AdaptationRepository,
-    private readonly userStories: UserStoryRepository
+    private readonly userStories: UserStoryRepository,
+    private readonly moderation: ModerationService
   ) {}
 
   /**
@@ -37,11 +40,7 @@ export class VoteService {
 
     await this.votes.upsert(userId, adaptationId, value);
     const { voteCount, voteScore } = await this.votes.aggregate(adaptationId);
-    const updated = await this.adaptations.updateVotes(adaptationId, voteScore, voteCount);
-
-    if (voteCount >= 3 && voteScore >= 4 && updated.status === 'family_approved') {
-      await this.adaptations.updateStatus(adaptationId, 'community');
-    }
+    await this.adaptations.updateVotes(adaptationId, voteScore, voteCount);
 
     return { voteCount, voteScore };
   }
@@ -53,7 +52,7 @@ export class VoteService {
 
   async shareWithCommunity(userId: string, adaptationId: string) {
     await this.assertUserOwnsAdaptation(userId, adaptationId);
-    return this.adaptations.updateStatus(adaptationId, 'community');
+    return this.moderation.submitForCommunityReview(adaptationId, userId);
   }
 
   async listCommunityVersions(adaptationId: string) {

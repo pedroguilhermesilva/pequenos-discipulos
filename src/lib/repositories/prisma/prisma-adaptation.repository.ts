@@ -1,4 +1,8 @@
 import type { PassageAdaptation, PrismaClient } from '@prisma/client';
+import {
+  CACHEABLE_STATUSES,
+  COMMUNITY_VISIBLE_STATUSES,
+} from '@/lib/moderation/constants';
 import type {
   AdaptationLookupKey,
   AdaptationRepository,
@@ -46,9 +50,7 @@ export class PrismaAdaptationRepository implements AdaptationRepository {
   listApproved(filters: LibraryFilters = {}): Promise<PassageAdaptation[]> {
     return this.prisma.passageAdaptation.findMany({
       where: {
-        status: filters.status
-          ? { in: filters.status }
-          : { in: ['community', 'as_default', 'family_approved'] },
+        status: filters.status ? { in: filters.status } : { in: CACHEABLE_STATUSES },
         ageTier: filters.ageTier,
         contentType: filters.contentType,
       },
@@ -71,7 +73,7 @@ export class PrismaAdaptationRepository implements AdaptationRepository {
         bibleVersionId: params.bibleVersionId,
         verseFrom: params.verseFrom,
         verseTo: params.verseTo,
-        status: { in: ['community', 'as_default', 'family_approved'] },
+        status: { in: COMMUNITY_VISIBLE_STATUSES },
       },
       orderBy: [{ voteScore: 'desc' }, { version: 'desc' }],
     });

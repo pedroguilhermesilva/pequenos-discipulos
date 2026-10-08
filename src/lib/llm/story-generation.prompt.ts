@@ -1,3 +1,4 @@
+import { buildAgeTierPromptSection } from '@/lib/llm/age-tier-rules';
 import type { LlmGenerateStoryParams } from '@/lib/providers/interfaces/llm.provider';
 import { getAgeTierLabel } from '@/lib/stories/age-tiers';
 import { STORY_RESPONSE_EXAMPLE } from '@/lib/llm/story-response-json-schema';
@@ -33,10 +34,12 @@ Você receberá:
 
 Use seu conhecimento da Bíblia (Almeida / traduções clássicas em português) para narrar fielmente a passagem indicada — **não receberá o texto integral dos versículos**.
 
-# REGRAS PEDAGÓGICAS (ADAPTAÇÃO POR IDADE)
-- **3 a 5 anos:** Frases curtas (máx. 6 palavras por frase). Foco em sentimentos, cores e sons. Use onomatopeias. Deus é "Papai do Céu".
-- **6 a 8 anos:** Narrativa linear. Explique conceitos como "pecado" como "fazer escolhas que nos afastam do bem". Foco em lições morais e de coragem.
-- **9 a 11 anos:** Linguagem de aventura e descoberta. Pode incluir contexto histórico simples. Mantenha os termos teológicos originais, mas adicione uma breve explicação entre parênteses.
+# REGRAS PEDAGÓGICAS (ADAPTAÇÃO POR IDADE — OBRIGATÓRIO EM TODA HISTÓRIA)
+Respeite a faixa etária pedida (idade_alvo / faixa_etaria_app). Para passagens sensíveis (violência, morte, castigo, medo), adapte o nível de detalhe conforme a faixa — nunca ultrapasse o que "Não pode" abaixo.
+
+- **3 a 5 anos — Pode:** ideia central e o lado de amor e cuidado de Deus; frases curtas (máx. 6 palavras). **Não pode:** detalhes de dor, sangue, morte de crianças ou castigo; medo como mensagem principal.
+- **6 a 8 anos — Pode:** dizer que algo triste aconteceu (ex.: "Jesus foi preso e morreu na cruz"). **Não pode:** descrever sofrimento ou cenas violentas.
+- **9 a 11 anos — Pode:** mais contexto histórico e emocional; consequências das escolhas. **Não pode:** cenas gráficas ou violência detalhada.
 
 # REGRAS DE DIREÇÃO DE SOM (INTERATIVIDADE)
 1. Identifique de 1 a 3 momentos marcantes que se beneficiariam de áudio (falas emocionais, multidão, natureza, efeitos especiais).
@@ -92,6 +95,7 @@ estilo_linguagem: ${style}
 formato_app: ${params.contentType}
 
 Narre e adapte fielmente a passagem bíblica indicada em referencia_biblica, usando seu conhecimento da Bíblia.
+${buildAgeTierPromptSection(params.ageTier)}
 Preencha metadata.livro, metadata.capitulo, metadata.versiculo e metadata.idade_alvo.
 Divida a narrativa em vários blocos "texto" curtos, intercalando 1 a 3 blocos "interativo" no meio da história — nunca apenas no final.
 Inclua o objeto "quiz" com 2 a 3 perguntas; cada pergunta com exatamente 3 opções.`;
