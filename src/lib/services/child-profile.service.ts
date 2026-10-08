@@ -59,6 +59,23 @@ export class ChildProfileService {
     return this.childProfiles.update(id, { hasCreatedStory: true });
   }
 
+  async delete(userId: string, profileId: string) {
+    const profile = await this.childProfiles.findById(profileId);
+    if (!profile || profile.userId !== userId) {
+      throw new DomainError('NOT_FOUND', 'Perfil não encontrado.');
+    }
+
+    const count = await this.childProfiles.countByUser(userId);
+    if (count <= 1) {
+      throw new DomainError(
+        'VALIDATION_ERROR',
+        'Não é possível remover o único perfil de criança.'
+      );
+    }
+
+    await this.childProfiles.delete(profileId);
+  }
+
   async migrateFromLocal(
     userId: string,
     tier: SubscriptionTier,

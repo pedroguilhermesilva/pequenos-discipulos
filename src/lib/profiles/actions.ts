@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import {
   ACTIVE_CHILD_COOKIE,
+  getCurrentChildProfileId,
   getCurrentUserId,
   requireCurrentUser,
 } from '@/lib/auth/get-current-user';
@@ -30,7 +31,67 @@ export async function setActiveChildProfile(
     });
 
     revalidatePath('/');
+    revalidatePath('/home');
+    revalidatePath('/perfis');
+    revalidatePath('/configuracoes');
+    revalidatePath('/biblioteca');
+    revalidatePath('/nova-historia');
     return { ok: true, data: { profileId } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function getActiveChildProfileIdAction(): Promise<
+  ActionResult<{ profileId: string | null }>
+> {
+  try {
+    await requireCurrentUser();
+    const profileId = await getCurrentChildProfileId();
+    return { ok: true, data: { profileId } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function deleteChildProfileAction(
+  profileId: string
+): Promise<ActionResult<{ deletedId: string; activeProfileId: string | null }>> {
+  try {
+    const user = await requireCurrentUser();
+    const profile = await container.services.childProfiles.findById(profileId);
+    if (!profile || profile.userId !== user.id) {
+      return { ok: false, code: 'NOT_FOUND', message: 'Perfil não encontrado.' };
+    }
+
+    await container.services.childProfiles.delete(user.id, profileId);
+
+    const jar = await cookies();
+    const currentActive = jar.get(ACTIVE_CHILD_COOKIE)?.value ?? null;
+    let activeProfileId = currentActive;
+
+    if (currentActive === profileId) {
+      const remaining = await container.services.childProfiles.list(user.id);
+      activeProfileId = remaining[0]?.id ?? null;
+      if (activeProfileId) {
+        jar.set(ACTIVE_CHILD_COOKIE, activeProfileId, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+        });
+      } else {
+        jar.delete(ACTIVE_CHILD_COOKIE);
+      }
+    }
+
+    revalidatePath('/');
+    revalidatePath('/home');
+    revalidatePath('/perfis');
+    revalidatePath('/configuracoes');
+    revalidatePath('/biblioteca');
+    revalidatePath('/nova-historia');
+
+    return { ok: true, data: { deletedId: profileId, activeProfileId } };
   } catch (error) {
     return toActionError(error);
   }

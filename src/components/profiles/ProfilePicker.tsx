@@ -22,8 +22,8 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
   const canAddProfile = profiles.length < MAX_CHILD_PROFILES;
   const canDismiss = Boolean(activeProfile);
 
-  const handleSelect = (profileId: string) => {
-    selectProfile(profileId);
+  const handleSelect = async (profileId: string) => {
+    await selectProfile(profileId);
     router.push(redirectTo);
   };
 

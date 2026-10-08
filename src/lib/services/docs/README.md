@@ -75,7 +75,11 @@ Metadados em `data/bible/index.json` — livros, abreviações, testamentos, ver
 
 CRUD de perfis de criança; limites por plano via `PlanLimitsService`.
 
-**Actions:** `src/lib/profiles/actions.ts`.
+**Actions:** `src/lib/profiles/actions.ts` — `setActiveChildProfile`, `getActiveChildProfileIdAction`, `deleteChildProfileAction`, etc.
+
+**Perfil ativo:** cookie httpOnly `active_child_profile_id` (`getCurrentChildProfileId()`). A UI sincroniza com o servidor via estas actions; o `localStorage` é espelho offline/demo, não fonte de verdade autenticada.
+
+**Exclusão de perfil:** `delete(userId, profileId)` exige dono (`userId`) e pelo menos 2 perfis na conta. Prisma cascade apaga `UserStory`, `Collection`, `AdaptationView` ligados ao `childProfileId`. Se o perfil excluído era o ativo, o cookie passa ao perfil restante mais antigo.
 
 O perfil guarda um **apelido** (campo `name` / `childName` nas preferências) — nunca é enviado ao LLM nem ao TTS.
 

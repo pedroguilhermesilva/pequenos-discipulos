@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChildProfileAvatar } from '@/components/profiles/ChildProfileAvatar';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
+import { ConfirmDeleteProfileModal } from '@/components/profiles/ConfirmDeleteProfileModal';
 import { ParentGateModal } from '@/components/stories/ParentGateModal';
 import { SettingsSection } from '@/components/settings/SettingsSection';
 import { ChipToggle } from '@/components/ui/ChipToggle';
@@ -456,8 +457,10 @@ export function ProfilePreferencesAccordion({
   const { selectProfile, removeProfile } = useChildProfiles();
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const [parentGateOpen, setParentGateOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<'add' | 'delete' | null>(null);
   const [profileToDelete, setProfileToDelete] = useState<string | null>(null);
+  const [isDeleting, startDeleteTransition] = useTransition();
 
   const canAddProfile = profiles.length < MAX_CHILD_PROFILES;
   const canDelete = profiles.length > 1;
@@ -474,18 +477,44 @@ export function ProfilePreferencesAccordion({
   const handleDeleteClick = (profileId: string) => {
     setProfileToDelete(profileId);
     setPendingAction('delete');
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    setConfirmDeleteOpen(false);
     setParentGateOpen(true);
   };
 
   const handleParentGateSuccess = () => {
     if (pendingAction === 'add') {
       router.push('/onboarding/step-1?modo=novo');
-    } else if (pendingAction === 'delete' && profileToDelete) {
-      removeProfile(profileToDelete);
+      setPendingAction(null);
+      setProfileToDelete(null);
+      return;
     }
+
+    if (pendingAction === 'delete' && profileToDelete) {
+      const profileId = profileToDelete;
+      startDeleteTransition(async () => {
+        const result = await removeProfile(profileId);
+        if (result.ok) {
+          onSaved?.(result.message);
+        } else {
+          onError?.(result.message);
+        }
+        setPendingAction(null);
+        setProfileToDelete(null);
+      });
+      return;
+    }
+
     setPendingAction(null);
     setProfileToDelete(null);
   };
+
+  const profilePendingDelete = profileToDelete
+    ? profiles.find((profile) => profile.id === profileToDelete)
+    : null;
 
   return (
     <>
@@ -532,6 +561,17 @@ export function ProfilePreferencesAccordion({
           )}
         </div>
       </SettingsSection>
+
+      <ConfirmDeleteProfileModal
+        open={confirmDeleteOpen}
+        profileName={profilePendingDelete?.name ?? 'este filho'}
+        onClose={() => {
+          setConfirmDeleteOpen(false);
+          setPendingAction(null);
+          setProfileToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+      />
 
       <ParentGateModal
         open={parentGateOpen}
