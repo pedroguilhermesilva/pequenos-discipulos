@@ -1,6 +1,7 @@
 import { Prisma, type Passage, type PrismaClient, type SubscriptionTier } from '@prisma/client';
 import {
   AdaptationNotFound,
+  FRIENDLY_GENERATION_ERROR,
   LlmValidationError,
 } from '@/lib/domain/errors';
 import { toPrismaAgeTier, toPrismaContentType } from '@/lib/domain/mappers';
@@ -23,6 +24,7 @@ import {
 } from '@/lib/services/story-cache.service';
 import { getBookMeta } from '@/lib/stories/bible-metadata';
 import {
+  chapterReferenceForSlug,
   formatPassageReference,
   getPassageById,
   getSelectionFromPassageId,
@@ -73,11 +75,16 @@ export class StoryGenerationService {
           })
         : `${bookMeta?.name ?? selection.bookId} ${selection.chapter}:${payload.verseFrom}–${payload.verseTo}`;
 
+    // A linha Passage é partilhada por todos os intervalos do mesmo capítulo (slug),
+    // por isso guarda a referência do capítulo; o intervalo fica na adaptação (verseFrom/verseTo).
+    const chapterReference =
+      chapterReferenceForSlug(payload.passageSlug) ??
+      `${bookMeta?.name ?? selection.bookId} ${selection.chapter}`;
     const passage = await this.findOrCreatePassage(payload.passageSlug, {
-      reference,
+      reference: chapterReference,
       book: bookMeta?.name ?? selection.bookId,
-      preview: `Passagem ${reference}`,
-      sourceText: { reference } as Prisma.InputJsonValue,
+      preview: `Passagem ${chapterReference}`,
+      sourceText: { reference: chapterReference } as Prisma.InputJsonValue,
     });
 
     const lookupKey = {
@@ -130,7 +137,12 @@ export class StoryGenerationService {
 
     const content = adaptationContentSchema.safeParse(generated.content);
     if (!content.success) {
-      throw new LlmValidationError(content.error.message);
+      const details = content.error.issues
+        .slice(0, 8)
+        .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+        .join('; ');
+      console.error(`[StoryGeneration] Conteúdo da IA inválido para ${reference}: ${details}`);
+      throw new LlmValidationError(FRIENDLY_GENERATION_ERROR, details);
     }
 
     const quiz = generated.quiz

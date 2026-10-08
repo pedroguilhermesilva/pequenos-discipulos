@@ -343,5 +343,26 @@ export function formatPassageReference(passage: BiblePassage, range?: PassageRan
   return formatChapterReference(passage.book, passage.chapter, { verseFrom, verseTo });
 }
 
+/** Referência ao nível do capítulo (ex.: "1 Samuel 17") — usada na tabela Passage, partilhada por vários intervalos. */
+export function chapterReferenceForSlug(passageSlug: string): string | undefined {
+  const passage = getPassageById(passageSlug);
+  if (!passage) return undefined;
+  return passage.chapterEnd && passage.chapterEnd !== passage.chapter
+    ? `${passage.book} ${passage.chapter}–${passage.chapterEnd}`
+    : `${passage.book} ${passage.chapter}`;
+}
+
+/** Referência de uma adaptação com o intervalo de versículos escolhido (ex.: "1 Samuel 17:1–10"). */
+export function formatAdaptationReference(
+  passageSlug: string,
+  verseFrom: number,
+  verseTo: number,
+  fallback: string
+): string {
+  const passage = getPassageById(passageSlug);
+  if (!passage) return fallback;
+  return formatPassageReference(passage, { verseFrom, verseTo });
+}
+
 /** @deprecated Use suggestedPassages */
 export const biblePassages = suggestedPassages;

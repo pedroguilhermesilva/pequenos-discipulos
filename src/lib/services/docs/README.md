@@ -27,6 +27,33 @@ Gera ou reutiliza adaptações de passagens bíblicas.
 
 Seleção de adaptações já existentes por `voteScore`, excluindo as do próprio utilizador e as já vistas.
 
+## AudioService
+
+Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
+
+- **Narração da história:** uma síntese TTS para o texto completo (`story-narration@<suffix>` no cache). **Gemini Flash TTS** (default): Cloud TTS v1 + alinhamento pós-síntese via interface `NarrationAligner` (`NARRATION_ALIGNER=google|groq`). **Neural2** (alternativa): timepoints SSML `<mark>` v1beta1. Slices por página em `narration-alignment.ts`. Campo `storyNarrationVoice` guarda o suffix completo (modelo/voz/estilo) e invalida cache ao mudar config.
+- **Blocos interactivos:** TTS curto (`generateSpeech`) ou SFX ElevenLabs conforme `resolve-block-audio.ts`.
+- **LGPD:** o texto enviado ao TTS vem só do conteúdo da história — nunca o apelido da criança (`ChildProfile.name`).
+
+**Providers:**
+
+| Provider | Env | Uso |
+|----------|-----|-----|
+| `GeminiFlashTtsProvider` | `GOOGLE_TTS_PROVIDER=gemini`, `GOOGLE_TTS_MODEL`, `GOOGLE_TTS_GEMINI_VOICE`, `GOOGLE_TTS_STYLE_PROMPT`, `GOOGLE_CLOUD_PROJECT_ID` | Narração expressiva + `NarrationAligner` |
+| `GoogleNarrationAligner` | `NARRATION_ALIGNER=google` (default no código), mesma conta de serviço | Alinhamento via Speech-to-Text v2 |
+| `GroqWhisperNarrationAligner` | `NARRATION_ALIGNER=groq`, `GROQ_API_KEY` (**recomendado**) | Alinhamento via Whisper Large v3 Turbo |
+| `GoogleTtsProvider` | `GOOGLE_TTS_PROVIDER=neural2`, `GOOGLE_TTS_VOICE` (default `pt-BR-Neural2-C`) | Narração + timepoints SSML nativos |
+| `StubTtsProvider` | `TTS_USE_STUB=true` | Dev / CI |
+| `UnconfiguredTtsProvider` | sem `GOOGLE_TTS_CREDENTIALS_JSON` | Falha só ao pedir narração: "Narração não configurada: falta GOOGLE_TTS_CREDENTIALS_JSON." |
+| `ElevenLabsSfxProvider` | `ELEVENLABS_API_KEY` | Efeitos sonoros (removido no #5) |
+
+Autenticação Google TTS (só conta de serviço):
+
+1. **Service account** — `GOOGLE_TTS_CREDENTIALS_JSON` com `client_email` + `private_key` + `project_id`; OAuth bearer no servidor (via `jose`, escopo `cloud-platform`, token em cache). Papel necessário: "Usuário da Plataforma de Agentes" (`roles/aiplatform.user`).
+2. **Projeto** — `GOOGLE_CLOUD_PROJECT_ID` opcional; sem ele usa o `project_id` do JSON.
+
+Ver comparativo de vozes: `docs/google-tts-voices-pt-br.md`.
+
 ## Armazenamento de áudio
 
 - **Produção/preview (Vercel):** `BlobStorageProvider` quando `BLOB_READ_WRITE_TOKEN` está definido — store privado `pequenos-discipulos-audio` (fra1). URLs servidas via `/api/storage/...` (nunca URL privada do Blob nem o token).
@@ -75,6 +102,8 @@ Votos e aprovação familiar — **sempre** atrás de parent gate validado no se
 | `AUTH_SECRET` / `AUTH_URL` | NextAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth opcional |
 | `LLM_*` | Geração de histórias |
-| `ELEVENLABS_*` / `TTS_USE_STUB` | Áudio |
+| `GOOGLE_TTS_*` / `TTS_USE_STUB` | Narração TTS (Google) |
+| `NARRATION_ALIGNER` / `GROQ_API_KEY` | Alinhamento palavra a palavra pós-Gemini |
+| `ELEVENLABS_*` | SFX (ElevenLabs, até #5) |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limit partilhado (prod) |
 | `BLOB_READ_WRITE_TOKEN` | Áudio privado no Vercel Blob (prod/preview) |

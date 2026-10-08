@@ -3,9 +3,11 @@ import { createStorageProvider } from '@/lib/providers/create-storage-provider';
 import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
-import { ElevenLabsTtsProvider } from '@/lib/providers/elevenlabs/elevenlabs-tts.provider';
+import {
+  resolveGoogleTtsRuntimeConfig,
+  selectTtsProvider,
+} from '@/lib/providers/google/create-google-tts-provider';
 import { StubSfxProvider } from '@/lib/providers/stubs/stub-sfx.provider';
-import { StubTtsProvider } from '@/lib/providers/stubs/stub-tts.provider';
 import { PrismaAdaptationRepository } from '@/lib/repositories/prisma/prisma-adaptation.repository';
 import { PrismaChildProfileRepository } from '@/lib/repositories/prisma/prisma-child-profile.repository';
 import { PrismaCollectionRepository } from '@/lib/repositories/prisma/prisma-collection.repository';
@@ -43,29 +45,23 @@ const llmProvider = useLlmStub
       baseUrl: llmBaseUrl,
       model: llmModel,
       providerName: 'LLM',
+      responseFormat:
+        process.env.LLM_RESPONSE_FORMAT === 'json_object' || process.env.LLM_RESPONSE_FORMAT === 'json_schema'
+          ? process.env.LLM_RESPONSE_FORMAT
+          : undefined,
     });
+
+const googleTtsRuntimeConfig = resolveGoogleTtsRuntimeConfig(process.env);
+const ttsProvider = selectTtsProvider(googleTtsRuntimeConfig, process.env);
 
 const elevenKey = process.env.ELEVENLABS_API_KEY?.trim() ?? '';
 const elevenBaseUrl =
   process.env.ELEVENLABS_BASE_URL?.trim() || 'https://api.elevenlabs.io/v1';
-const elevenVoiceId = process.env.ELEVENLABS_TTS_VOICE_ID?.trim() ?? '';
-const elevenTtsModel =
-  process.env.ELEVENLABS_TTS_MODEL?.trim() || 'eleven_multilingual_v2';
 const elevenSfxModel =
   process.env.ELEVENLABS_SFX_MODEL?.trim() || 'eleven_text_to_sound_v2';
-const useAudioStub =
-  process.env.TTS_USE_STUB === 'true' || !elevenKey || !elevenVoiceId;
+const useSfxStub = process.env.TTS_USE_STUB === 'true' || !elevenKey;
 
-const ttsProvider = useAudioStub
-  ? new StubTtsProvider()
-  : new ElevenLabsTtsProvider({
-      apiKey: elevenKey,
-      baseUrl: elevenBaseUrl,
-      voiceId: elevenVoiceId,
-      model: elevenTtsModel,
-    });
-
-const sfxProvider = useAudioStub
+const sfxProvider = useSfxStub
   ? new StubSfxProvider()
   : new ElevenLabsSfxProvider({
       apiKey: elevenKey,
@@ -77,7 +73,13 @@ const storageProvider = createStorageProvider();
 const storageAccessService = new StorageAccessService(prisma);
 
 const planLimitsService = new PlanLimitsService(usageRepo, childProfileRepo);
-const audioService = new AudioService(prisma, ttsProvider, sfxProvider, storageProvider);
+const audioService = new AudioService(
+  prisma,
+  ttsProvider,
+  sfxProvider,
+  storageProvider,
+  googleTtsRuntimeConfig.cacheSuffix
+);
 const storyCacheService = new StoryCacheService(prisma);
 
 export const container = {
