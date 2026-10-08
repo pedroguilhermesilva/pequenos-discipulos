@@ -106,7 +106,7 @@ export class GeminiFlashTtsProvider implements TtsProvider {
       logGoogleApiError(
         'GeminiFlashTts',
         describeGoogleApiError(response.status, errorBody),
-        { model: this.config.modelName, voice: this.config.voiceName, auth: this.config.apiKey ? 'api-key' : 'service-account' }
+        { model: this.config.modelName, voice: this.config.voiceName, auth: auth.mode }
       );
       throw new DomainError(
         'TTS_NOT_CONFIGURED',

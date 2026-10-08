@@ -4,7 +4,10 @@ import {
   matchTranscriptionToText,
   type TranscribedWord,
 } from '@/lib/providers/google/match-transcription-words';
-import { resolveGoogleTtsAuthorization } from '@/lib/providers/google/google-tts-auth';
+import {
+  extractGoogleProjectId,
+  resolveGoogleTtsAuthorization,
+} from '@/lib/providers/google/google-tts-auth';
 import { tokenizeNarrationWords } from '@/lib/providers/google/google-tts-ssml';
 import type {
   NarrationAligner,
@@ -78,7 +81,8 @@ export class GoogleNarrationAligner implements NarrationAligner {
       };
     }
 
-    const projectId = this.config.projectId?.trim();
+    const projectId =
+      this.config.projectId?.trim() || extractGoogleProjectId(this.config.credentialsJson);
     if (!projectId) {
       console.error(
         '[GoogleNarrationAligner] O alinhamento com Google Speech-to-Text precisa de GOOGLE_CLOUD_PROJECT_ID (ou project_id em GOOGLE_TTS_CREDENTIALS_JSON). Sem ele, usamos tempos estimados para destacar as palavras. Defina a variável ou use NARRATION_ALIGNER=groq.'
@@ -100,9 +104,10 @@ export class GoogleNarrationAligner implements NarrationAligner {
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: this.config.apiKey
-          ? auth.headers
-          : { ...auth.headers, 'x-goog-user-project': projectId },
+        headers:
+          auth.mode === 'service-account'
+            ? { ...auth.headers, 'x-goog-user-project': projectId }
+            : auth.headers,
         body: JSON.stringify({
           config: {
             autoDecodingConfig: {},

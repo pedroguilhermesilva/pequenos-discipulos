@@ -111,7 +111,7 @@ export class GoogleTtsProvider implements TtsProvider {
       logGoogleApiError(
         'GoogleTts',
         describeGoogleApiError(response.status, errorBody),
-        { voice: this.config.voiceName, auth: this.config.apiKey ? 'api-key' : 'service-account' }
+        { voice: this.config.voiceName, auth: auth.mode }
       );
       throw new DomainError(
         'TTS_NOT_CONFIGURED',

@@ -217,4 +217,46 @@ describe('GeminiFlashTtsProvider', () => {
     expect(logged).not.toContain('secret-key');
     errorSpy.mockRestore();
   });
+
+  it('uses the service account (Bearer) instead of the API key when both are configured', async () => {
+    const { generateKeyPairSync } = await import('node:crypto');
+    const { resetGoogleTtsAuthCacheForTests } = await import('@/lib/providers/google/google-tts-auth');
+    resetGoogleTtsAuthCacheForTests();
+    const pem = generateKeyPairSync('rsa', { modulusLength: 2048 })
+      .privateKey.export({ type: 'pkcs8', format: 'pem' })
+      .toString();
+
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { ok: true, json: async () => ({ access_token: 'ya29.sa', expires_in: 3600 }) };
+      }
+      return { ok: true, json: async () => ({ audioContent: Buffer.from('audio').toString('base64') }) };
+    });
+
+    const provider = new GeminiFlashTtsProvider(
+      {
+        apiKey: 'test-key',
+        credentialsJson: JSON.stringify({
+          project_id: 'tts-test-507913',
+          client_email: 'sa@tts-test-507913.iam.gserviceaccount.com',
+          private_key: pem.replace(/\n/g, '\\n'),
+        }),
+        modelName: 'gemini-2.5-flash-tts',
+        voiceName: 'Leda',
+        languageCode: 'pt-BR',
+        stylePrompt: 'x',
+      },
+      createAlignerStub({ provider: 'stub', strategy: 'none', alignment: null })
+    );
+
+    await provider.generateSpeech({ text: 'Olá', blockKey: 'b' });
+
+    const ttsCall = fetchMock.mock.calls.find(([url]) => String(url).includes('texttospeech'));
+    const [ttsUrl, ttsInit] = ttsCall as [string, RequestInit];
+    expect(ttsUrl).toBe('https://texttospeech.googleapis.com/v1/text:synthesize');
+    const headers = ttsInit.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer ya29.sa');
+    expect(headers['x-goog-user-project']).toBe('tts-test-507913');
+    resetGoogleTtsAuthCacheForTests();
+  });
 });

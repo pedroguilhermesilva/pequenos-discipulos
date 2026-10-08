@@ -89,6 +89,8 @@ Alternativa mais segura: **service account** com `GOOGLE_TTS_CREDENTIALS_JSON` (
 
 \* Ou `GOOGLE_TTS_CREDENTIALS_JSON` (neste caso `project_id` no JSON substitui `GOOGLE_CLOUD_PROJECT_ID`).
 
+**Prioridade:** se `GOOGLE_TTS_CREDENTIALS_JSON` estiver definida, a app usa sempre a service account (token OAuth, escopo `cloud-platform`), mesmo que `GOOGLE_TTS_API_KEY` também exista. O JSON pode ser colado cru (várias linhas); `\n` literais na `private_key` são convertidos. O header `x-goog-user-project` usa `GOOGLE_CLOUD_PROJECT_ID` ou, sem ele, o `project_id` do JSON.
+
 Para voltar ao Neural2:
 
 ```
