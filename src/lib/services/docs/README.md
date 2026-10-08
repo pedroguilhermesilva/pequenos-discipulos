@@ -77,7 +77,7 @@ CRUD de perfis de criança; limites por plano via `PlanLimitsService`.
 
 **Actions:** `src/lib/profiles/actions.ts` — `setActiveChildProfile`, `getActiveChildProfileIdAction`, `deleteChildProfileAction`, etc.
 
-**Perfil ativo:** cookie httpOnly `active_child_profile_id` (`getCurrentChildProfileId()`). A UI sincroniza com o servidor via estas actions; o `localStorage` é espelho offline/demo, não fonte de verdade autenticada.
+**Perfil ativo:** cookie httpOnly `active_child_profile_id` (`getCurrentChildProfileId()`). Um único `ChildProfileProvider` envolve a app em `QueryProvider` (layout). Após `setActiveChildProfile`, o estado React actualiza com o `profileId` devolvido (sem depender de reler o cookie na hora). Biblioteca/home pedem histórias via `getChildStoriesAction(activeProfile.id)`.
 
 **Exclusão de perfil:** `delete(userId, profileId)` exige dono (`userId`) e pelo menos 2 perfis na conta. Prisma cascade apaga `UserStory`, `Collection`, `AdaptationView` ligados ao `childProfileId`. Se o perfil excluído era o ativo, o cookie passa ao perfil restante mais antigo.
 

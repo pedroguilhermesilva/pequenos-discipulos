@@ -19,12 +19,22 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
   const router = useRouter();
   const { profiles, activeProfile, selectProfile } = useChildProfiles();
   const [parentGateOpen, setParentGateOpen] = useState(false);
+  const [selectingProfileId, setSelectingProfileId] = useState<string | null>(null);
   const canAddProfile = profiles.length < MAX_CHILD_PROFILES;
   const canDismiss = Boolean(activeProfile);
 
   const handleSelect = async (profileId: string) => {
-    await selectProfile(profileId);
-    router.push(redirectTo);
+    if (selectingProfileId) return;
+
+    setSelectingProfileId(profileId);
+    try {
+      const selected = await selectProfile(profileId);
+      if (selected) {
+        router.push(redirectTo);
+      }
+    } finally {
+      setSelectingProfileId(null);
+    }
   };
 
   const handleDismiss = () => {
@@ -75,39 +85,51 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
           role="list"
           aria-label="Perfis de crianças"
         >
-          {profiles.map((profile) => (
-            <button
-              key={profile.id}
-              type="button"
-              role="listitem"
-              onClick={() => handleSelect(profile.id)}
-              className="group flex flex-col items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja rounded-livro p-2"
-            >
-              <div className="relative">
+          {profiles.map((profile) => {
+            const isSelecting = selectingProfileId === profile.id;
+            const isActive = activeProfile?.id === profile.id;
+
+            return (
+              <button
+                key={profile.id}
+                type="button"
+                role="listitem"
+                disabled={Boolean(selectingProfileId)}
+                onClick={() => void handleSelect(profile.id)}
+                className={cn(
+                  'group flex flex-col items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja rounded-livro p-2',
+                  selectingProfileId && !isSelecting && 'opacity-60'
+                )}
+              >
                 <ChildProfileAvatar
                   profile={profile}
                   size="xl"
-                  className="group-hover:scale-105 group-hover:shadow-livro-lg transition-all duration-300"
+                  active={isActive}
+                  className={cn(
+                    'transition-all duration-300',
+                    'group-hover:scale-[1.04] group-hover:shadow-livro-lg',
+                    'group-hover:ring-4 group-hover:ring-laranja/35',
+                    'group-focus-visible:scale-[1.04] group-focus-visible:ring-4 group-focus-visible:ring-laranja/50',
+                    isSelecting && 'scale-[1.04] ring-4 ring-laranja/50 shadow-livro-lg'
+                  )}
                 />
-                <span className="absolute -bottom-1 -right-1 w-7 h-7 bg-white border border-borda rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
-                  <span className="material-symbols-outlined text-vida text-base">play_arrow</span>
-                </span>
-              </div>
-              <div className="text-center">
-                <p className="font-display font-bold text-tinta text-base md:text-lg group-hover:text-laranja transition-colors">
-                  {profile.name}
-                </p>
-                <p className="text-xs text-oliva mt-0.5">
-                  {getAgeGroupLabel(profile.preferences.ageGroup)}
-                </p>
-              </div>
-            </button>
-          ))}
+                <div className="text-center">
+                  <p className="font-display font-bold text-tinta text-base md:text-lg group-hover:text-laranja transition-colors">
+                    {profile.name}
+                  </p>
+                  <p className="text-xs text-oliva mt-0.5">
+                    {getAgeGroupLabel(profile.preferences.ageGroup)}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
 
           {canAddProfile && (
             <button
               type="button"
               onClick={handleAddProfile}
+              disabled={Boolean(selectingProfileId)}
               className="group flex flex-col items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja rounded-livro p-2"
             >
               <div
@@ -127,16 +149,6 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
             </button>
           )}
         </div>
-
-        {canDismiss && (
-          <button
-            type="button"
-            onClick={handleDismiss}
-            className="mt-8 text-sm font-semibold text-oliva hover:text-laranja transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-laranja rounded"
-          >
-            Continuar como {activeProfile?.name}
-          </button>
-        )}
 
         {showManageHint && (
           <p className="mt-12 text-xs text-oliva/70 text-center max-w-sm">

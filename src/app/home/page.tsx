@@ -8,7 +8,7 @@ import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 import { getAgeGroupLabel } from '@/lib/onboarding/constants';
 import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
 import { getStoryHref, type StorySummary } from '@/lib/stories';
-import { getLibraryStoriesAction } from '@/lib/stories/library-actions';
+import { getChildStoriesAction } from '@/lib/stories/library-actions';
 import { cn } from '@/lib/cn';
 
 function profileFromPreferences(preferences = DEFAULT_PREFERENCES) {
@@ -111,7 +111,8 @@ function HomePageContent() {
   const childProfile = profileFromPreferences(preferences);
   const { data: stories = [] } = useQuery({
     queryKey: ['library', activeProfile?.id ?? 'none'],
-    queryFn: () => getLibraryStoriesAction(),
+    queryFn: () => getChildStoriesAction(activeProfile?.id),
+    enabled: Boolean(activeProfile?.id),
   });
   const continueStory = stories.find(
     (s) => s.progress !== undefined && s.progress > 0 && s.progress < 100

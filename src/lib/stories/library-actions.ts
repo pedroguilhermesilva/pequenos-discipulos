@@ -29,8 +29,21 @@ export async function getCollectionsAction() {
 
 export async function getChildStoriesAction(childProfileId?: string): Promise<StorySummary[]> {
   const user = await requireCurrentUser();
-  const childId = childProfileId ?? (await getCurrentChildProfileId()) ?? undefined;
-  return container.services.library.listForUser(user.id, childId);
+  let childId = childProfileId ?? (await getCurrentChildProfileId()) ?? undefined;
+
+  if (childProfileId) {
+    const profile = await container.services.childProfiles.findById(childProfileId);
+    if (!profile || profile.userId !== user.id) {
+      childId = undefined;
+    }
+  }
+
+  const userStories = await container.services.library.listForUser(user.id, childId);
+  if (userStories.length > 0) {
+    return userStories;
+  }
+
+  return container.services.library.listCommunity();
 }
 
 export async function getUserStoryAction(storyId: string) {

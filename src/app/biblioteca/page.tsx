@@ -6,7 +6,7 @@ import { AppShell } from '@/components/AppShell';
 import { LibraryCarousel } from '@/components/ui/LibraryCarousel';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 import { getStoryHref, type StorySummary } from '@/lib/stories';
-import { getLibraryStoriesAction } from '@/lib/stories/library-actions';
+import { getChildStoriesAction } from '@/lib/stories/library-actions';
 import { cn } from '@/lib/cn';
 
 export default function BibliotecaPage() {
@@ -21,7 +21,8 @@ function BibliotecaContent() {
   const { activeProfile } = useChildProfiles();
   const { data: stories = [], isLoading } = useQuery({
     queryKey: ['library', activeProfile?.id ?? 'none'],
-    queryFn: () => getLibraryStoriesAction(),
+    queryFn: () => getChildStoriesAction(activeProfile?.id),
+    enabled: Boolean(activeProfile?.id),
   });
 
   const inProgress = stories.filter((s) => s.progress !== undefined && s.progress > 0 && s.progress < 100);

@@ -28,6 +28,13 @@ async function solveParentGate(page: Page) {
   await page.getByRole('button', { name: /^confirmar$/i }).click();
 }
 
+async function expectDashboardForChild(page: Page, childName: RegExp, ageLabel: string) {
+  await expect(page).toHaveURL(/\/home/);
+  await expect(page.getByRole('heading', { name: /prontos para mais uma história/i })).toBeVisible();
+  await expect(page.locator('header').getByText(ageLabel)).toBeVisible();
+  await expect(page.getByText(childName).first()).toBeVisible();
+}
+
 test.describe('child profiles', () => {
   test.beforeAll(async () => {
     await prisma.user.update({
@@ -68,21 +75,24 @@ test.describe('child profiles', () => {
     await prisma.$disconnect();
   });
 
-  test('selecting another child updates the active profile on home', async ({ page }) => {
+  test('switching between children updates dashboard data each time', async ({ page }) => {
     await loginWithCredentials(page);
 
     if (page.url().includes('/perfis')) {
       await page.getByRole('button', { name: /^davi$/i }).click();
-      await expect(page).toHaveURL(/\/home/);
     }
 
-    await expect(page.getByText('3 a 5 anos')).toBeVisible();
+    await expectDashboardForChild(page, /davi/i, '3 a 5 anos');
 
     await page.goto('/perfis');
     await page.getByRole('button', { name: /^maria$/i }).click();
-    await expect(page).toHaveURL(/\/home/);
-    await expect(page.getByText('9 a 11 anos')).toBeVisible();
-    await expect(page.getByText('3 a 5 anos')).not.toBeVisible();
+    await expectDashboardForChild(page, /maria/i, '9 a 11 anos');
+    await expect(page.locator('header').getByText('3 a 5 anos')).not.toBeVisible();
+
+    await page.goto('/perfis');
+    await page.getByRole('button', { name: /^davi$/i }).click();
+    await expectDashboardForChild(page, /davi/i, '3 a 5 anos');
+    await expect(page.locator('header').getByText('9 a 11 anos')).not.toBeVisible();
   });
 
   test('deleting a child removes it from settings and shows feedback', async ({ page }) => {
