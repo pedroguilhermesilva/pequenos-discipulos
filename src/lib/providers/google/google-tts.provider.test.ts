@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/providers/google/google-tts-auth', () => ({
+  MISSING_CREDENTIALS_MESSAGE: 'Narração não configurada: falta GOOGLE_TTS_CREDENTIALS_JSON.',
+  resolveGoogleTtsAuthorization: vi.fn(async () => ({
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ya29.test' },
+  })),
+}));
+
 import { GoogleTtsProvider } from '@/lib/providers/google/google-tts.provider';
+
+const CREDS = '{"client_email":"sa@x.iam.gserviceaccount.com","private_key":"k"}';
 
 describe('GoogleTtsProvider', () => {
   const fetchMock = vi.fn();
@@ -27,7 +37,7 @@ describe('GoogleTtsProvider', () => {
     });
 
     const provider = new GoogleTtsProvider({
-      apiKey: 'test-key',
+      credentialsJson: CREDS,
       voiceName: 'pt-BR-Neural2-C',
       languageCode: 'pt-BR',
     });
@@ -40,8 +50,9 @@ describe('GoogleTtsProvider', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
-      'https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=test-key'
+      'https://texttospeech.googleapis.com/v1beta1/text:synthesize'
     );
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ya29.test');
 
     const body = JSON.parse(String(init.body)) as {
       input: { ssml: string };
@@ -69,7 +80,7 @@ describe('GoogleTtsProvider', () => {
     });
 
     const provider = new GoogleTtsProvider({
-      apiKey: 'test-key',
+      credentialsJson: CREDS,
       voiceName: 'pt-BR-Neural2-C',
       languageCode: 'pt-BR',
     });
@@ -96,7 +107,7 @@ describe('GoogleTtsProvider', () => {
     });
 
     const provider = new GoogleTtsProvider({
-      apiKey: 'bad-key',
+      credentialsJson: CREDS,
       voiceName: 'pt-BR-Neural2-C',
       languageCode: 'pt-BR',
     });
@@ -105,6 +116,14 @@ describe('GoogleTtsProvider', () => {
       provider.generateSpeechWithTimestamps({ text: 'Teste', blockKey: 'story-narration' })
     ).rejects.toMatchObject({
       code: 'TTS_NOT_CONFIGURED',
+    });
+  });
+
+  it('without GOOGLE_TTS_CREDENTIALS_JSON fails at call time with a clear message', async () => {
+    const provider = new GoogleTtsProvider({ voiceName: 'pt-BR-Neural2-C', languageCode: 'pt-BR' });
+    await expect(provider.generateSpeech({ text: 'Oi', blockKey: 'b' })).rejects.toMatchObject({
+      code: 'TTS_NOT_CONFIGURED',
+      message: expect.stringContaining('falta GOOGLE_TTS_CREDENTIALS_JSON'),
     });
   });
 });

@@ -1,5 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/providers/google/google-tts-auth', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/providers/google/google-tts-auth')>();
+  return {
+    ...actual,
+    resolveGoogleTtsAuthorization: vi.fn(async () => ({
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ya29.sa',
+        'x-goog-user-project': 'tts-test-507913',
+      },
+    })),
+  };
+});
+
+import { resolveGoogleTtsAuthorization } from '@/lib/providers/google/google-tts-auth';
 import { GoogleNarrationAligner } from '@/lib/providers/narration-aligner/google-narration-aligner';
+
+const CREDS_WITH_PROJECT = JSON.stringify(
+  { project_id: 'tts-test-507913', client_email: 'sa@tts-test-507913.iam.gserviceaccount.com', private_key: 'k' },
+  null,
+  2
+);
+const CREDS_WITHOUT_PROJECT = JSON.stringify({ client_email: 'sa@x.iam.gserviceaccount.com', private_key: 'k' });
 
 describe('GoogleNarrationAligner', () => {
   const fetchMock = vi.fn();
@@ -17,7 +40,7 @@ describe('GoogleNarrationAligner', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const longAudio = Buffer.alloc(900_000);
     const aligner = new GoogleNarrationAligner({
-      apiKey: 'test-key',
+      credentialsJson: CREDS_WITH_PROJECT,
       projectId: 'demo-project',
       languageCode: 'pt-BR',
     });
@@ -55,7 +78,7 @@ describe('GoogleNarrationAligner', () => {
     });
 
     const aligner = new GoogleNarrationAligner({
-      apiKey: 'test-key',
+      credentialsJson: CREDS_WITH_PROJECT,
       projectId: 'demo-project',
       languageCode: 'pt-BR',
     });
@@ -74,7 +97,7 @@ describe('GoogleNarrationAligner', () => {
 
   it('falls back to estimated timings with a clear Portuguese error when project ID is missing (call time only)', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const aligner = new GoogleNarrationAligner({ apiKey: 'test-key', languageCode: 'pt-BR' });
+    const aligner = new GoogleNarrationAligner({ credentialsJson: CREDS_WITHOUT_PROJECT, languageCode: 'pt-BR' });
 
     const result = await aligner.align({
       text: 'Olá Deus',
@@ -90,40 +113,18 @@ describe('GoogleNarrationAligner', () => {
     errorSpy.mockRestore();
   });
 
-  it('prefers the service account (Bearer + x-goog-user-project) over the API key', async () => {
-    const { generateKeyPairSync } = await import('node:crypto');
-    const { resetGoogleTtsAuthCacheForTests } = await import('@/lib/providers/google/google-tts-auth');
-    resetGoogleTtsAuthCacheForTests();
-    const pem = generateKeyPairSync('rsa', { modulusLength: 2048 })
-      .privateKey.export({ type: 'pkcs8', format: 'pem' })
-      .toString();
-    const credentialsJson = JSON.stringify(
-      { project_id: 'tts-test-507913', client_email: 'sa@tts-test-507913.iam.gserviceaccount.com', private_key: pem },
-      null,
-      2
-    );
-
-    fetchMock.mockImplementation(async (url: string) => {
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return { ok: true, json: async () => ({ access_token: 'ya29.sa', expires_in: 3600 }) };
-      }
-      return {
-        ok: true,
-        json: async () => ({
-          results: [{ alternatives: [{ words: [
-            { word: 'Olá', startOffset: '0s', endOffset: '0.4s' },
-            { word: 'Deus', startOffset: '0.4s', endOffset: '0.9s' },
-          ] }] }],
-        }),
-      };
+  it('uses the service account token and takes the project from the JSON when GOOGLE_CLOUD_PROJECT_ID is unset', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [{ alternatives: [{ words: [
+          { word: 'Olá', startOffset: '0s', endOffset: '0.4s' },
+          { word: 'Deus', startOffset: '0.4s', endOffset: '0.9s' },
+        ] }] }],
+      }),
     });
 
-    const aligner = new GoogleNarrationAligner({
-      apiKey: 'test-key',
-      credentialsJson,
-      languageCode: 'pt-BR',
-    });
-
+    const aligner = new GoogleNarrationAligner({ credentialsJson: CREDS_WITH_PROJECT, languageCode: 'pt-BR' });
     const result = await aligner.align({
       text: 'Olá Deus',
       audioBuffer: Buffer.from('audio'),
@@ -132,14 +133,12 @@ describe('GoogleNarrationAligner', () => {
     });
 
     expect(result.strategy).toBe('provider');
-    const sttCall = fetchMock.mock.calls.find(([url]) => String(url).includes('speech.googleapis.com'));
-    expect(sttCall).toBeDefined();
-    const [sttUrl, sttInit] = sttCall as [string, RequestInit];
+    expect(resolveGoogleTtsAuthorization).toHaveBeenCalledWith(CREDS_WITH_PROJECT, 'tts-test-507913');
+    const [sttUrl, sttInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(sttUrl).toContain('/projects/tts-test-507913/');
     expect(sttUrl).not.toContain('key=');
     const headers = sttInit.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer ya29.sa');
     expect(headers['x-goog-user-project']).toBe('tts-test-507913');
-    resetGoogleTtsAuthCacheForTests();
   });
 });

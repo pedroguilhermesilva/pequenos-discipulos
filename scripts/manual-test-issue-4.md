@@ -6,12 +6,12 @@
 cp .env.example .env
 # Preencher DATABASE_URL, AUTH_SECRET, BLOB_READ_WRITE_TOKEN (ou omitir para ./storage local)
 # Gemini Flash TTS (padrão):
-#   GOOGLE_TTS_API_KEY=...
-#   GOOGLE_CLOUD_PROJECT_ID=seu-projeto-gcp
+#   GOOGLE_TTS_CREDENTIALS_JSON={...JSON da conta de serviço...}
+#   GOOGLE_CLOUD_PROJECT_ID=seu-projeto-gcp   # opcional (usa o project_id do JSON)
 #   GOOGLE_TTS_PROVIDER=gemini
 #   GOOGLE_TTS_MODEL=gemini-2.5-flash-tts
 #   GOOGLE_TTS_GEMINI_VOICE=Leda
-#   NARRATION_ALIGNER=google   # ou groq + GROQ_API_KEY
+#   NARRATION_ALIGNER=groq     # recomendado, com GROQ_API_KEY (ou google = Speech-to-Text)
 # Neural2 (alternativa):
 #   GOOGLE_TTS_PROVIDER=neural2
 #   GOOGLE_TTS_VOICE=pt-BR-Neural2-C
@@ -29,7 +29,7 @@ Login: `dev@pequenos-discipulos.local` / `devpassword123`
 2. **Cloud Speech-to-Text API** (só se `NARRATION_ALIGNER=google`, default)
 3. **Groq API** (só se `NARRATION_ALIGNER=groq` — alternativa mais barata, ~US$ 0,003/história)
 
-Restringir `GOOGLE_TTS_API_KEY` às APIs Google necessárias no Console.
+A conta de serviço precisa do papel **"Usuário da Plataforma de Agentes"** (`roles/aiplatform.user`) no projeto dela.
 
 ## Caso feliz — narração Gemini com highlight
 
@@ -56,11 +56,11 @@ Restringir `GOOGLE_TTS_API_KEY` às APIs Google necessárias no Console.
 
 ## Erro / aviso
 
-1. Remover credenciais Google, manter `TTS_USE_STUB` vazio → cai no stub automaticamente (dev).
+1. Remover `GOOGLE_TTS_CREDENTIALS_JSON`, manter `TTS_USE_STUB` vazio → ao pedir narração aparece "Narração não configurada: falta GOOGLE_TTS_CREDENTIALS_JSON." (para áudio silencioso em dev use `TTS_USE_STUB=true`).
 
-2. Com credencial inválida (`GOOGLE_TTS_API_KEY=invalid`) e `TTS_USE_STUB` vazio:
+2. Com JSON inválido em `GOOGLE_TTS_CREDENTIALS_JSON` e `TTS_USE_STUB` vazio:
 3. Gerar narração numa história nova.
-4. **Esperado:** mensagem amigável (credenciais inválidas / API não ativada), sem crash.
+4. **Esperado:** mensagem clara (JSON inválido / papel em falta / API não ativada), sem crash.
 
 5. Com Gemini + `NARRATION_ALIGNER=google` mas **Speech-to-Text desativado**:
 6. Gerar narração numa história nova.
@@ -90,6 +90,6 @@ Restringir `GOOGLE_TTS_API_KEY` às APIs Google necessárias no Console.
 
 ## Preview Vercel
 
-1. Definir envs no projeto Vercel (Production/Preview): `GOOGLE_TTS_API_KEY`, `GOOGLE_CLOUD_PROJECT_ID`, `GOOGLE_TTS_PROVIDER=gemini`.
+1. Definir envs no projeto Vercel (Production/Preview): `GOOGLE_TTS_CREDENTIALS_JSON`, `NARRATION_ALIGNER=groq`, `GROQ_API_KEY` (opcional: `GOOGLE_CLOUD_PROJECT_ID`, `GOOGLE_TTS_PROVIDER=gemini`).
 2. Deploy do branch `cursor/google-tts-provider-ca81`.
 3. Abrir preview → história → **Ouvir narração** → validar voz e highlight.

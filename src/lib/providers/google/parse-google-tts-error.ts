@@ -67,28 +67,24 @@ export function parseGoogleTtsError(status: number, body: string): string {
   const reason = info.reason ?? '';
   const message = info.message;
 
-  if (reason === 'API_KEY_INVALID' || /API key not valid/i.test(message)) {
-    return `A chave GOOGLE_TTS_API_KEY é inválida. Verifique se copiou a chave certa.${suffix(info)}`;
-  }
-
   if (reason === 'SERVICE_DISABLED' || /has not been used in project|is disabled/i.test(message)) {
-    return `A API Cloud Text-to-Speech não está ativada no projeto da chave Google.${suffix(info)}`;
+    return `A API Cloud Text-to-Speech não está ativada no projeto da conta de serviço Google.${suffix(info)}`;
   }
 
   if (reason === 'BILLING_DISABLED' || /billing/i.test(message)) {
     return `O projeto Google não tem a faturação (billing) ativada para o Text-to-Speech.${suffix(info)}`;
   }
 
-  if (reason.startsWith('API_KEY_') && reason.endsWith('_BLOCKED')) {
-    return `A chave Google tem restrições que bloqueiam este pedido (ex.: só permite outras APIs, sites ou IPs). Adicione "Cloud Text-to-Speech API" às APIs permitidas da chave.${suffix(info)}`;
-  }
-
   if (reason === 'USER_PROJECT_DENIED' || /permission to use project/i.test(message)) {
-    return `O Google recusou o uso do projeto indicado (GOOGLE_CLOUD_PROJECT_ID). Confirme que é o mesmo projeto da chave.${suffix(info)}`;
+    return `O Google recusou o uso do projeto indicado. Confirme que GOOGLE_CLOUD_PROJECT_ID (ou o project_id do JSON) é o projeto da conta de serviço.${suffix(info)}`;
   }
 
   if (/aiplatform\.endpoints\.predict/i.test(message) || reason === 'IAM_PERMISSION_DENIED') {
-    return `O Gemini-TTS exige a permissão aiplatform.endpoints.predict (papel "Vertex AI User"). Com chave de API isso pode não funcionar: use uma conta de serviço em GOOGLE_TTS_CREDENTIALS_JSON com esse papel.${suffix(info)}`;
+    return `A conta de serviço precisa do papel "Usuário da Plataforma de Agentes" (aiplatform.user, antigo "Vertex AI User") no projeto dela para usar o Gemini-TTS.${suffix(info)}`;
+  }
+
+  if (status === 401) {
+    return `As credenciais da conta de serviço foram recusadas. Verifique GOOGLE_TTS_CREDENTIALS_JSON.${suffix(info)}`;
   }
 
   if (status === 401 || status === 403) {

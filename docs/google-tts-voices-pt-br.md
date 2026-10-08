@@ -24,14 +24,14 @@ Pesquisa com base na [documentação oficial de preços](https://cloud.google.co
 | `GOOGLE_TTS_STYLE_PROMPT` | narradora calorosa… | Instruções de estilo em pt-BR (campo `input.prompt` da API). |
 | `GOOGLE_TTS_LANGUAGE` | `pt-BR` | Idioma da síntese e do alinhamento. |
 
-**API usada:** Cloud Text-to-Speech `POST /v1/text:synthesize` com `input.text`, `input.prompt`, `voice.modelName` e `voice.name`. Reutiliza `GOOGLE_TTS_API_KEY` (restrita à Cloud Text-to-Speech) ou `GOOGLE_TTS_CREDENTIALS_JSON`.
+**API usada:** Cloud Text-to-Speech `POST /v1/text:synthesize` com `input.text`, `input.prompt`, `voice.modelName` e `voice.name`. Autenticação **só por conta de serviço** (`GOOGLE_TTS_CREDENTIALS_JSON`, token OAuth com escopo `cloud-platform`). Chaves de API não são suportadas: o Gemini-TTS exige uma identidade IAM.
 
 **Alinhamento palavra a palavra:** Gemini TTS não devolve timepoints. Depois da síntese, o app envia o MP3 + texto conhecido a um **aligner trocável** (`NARRATION_ALIGNER`):
 
 | `NARRATION_ALIGNER` | Implementação | Credencial | Custo ~3 min |
 |---------------------|---------------|------------|--------------|
-| `google` (default) | Cloud Speech-to-Text v2 | mesma `GOOGLE_TTS_API_KEY` + `GOOGLE_CLOUD_PROJECT_ID` | ~US$ 0,05 |
-| `groq` | Groq Whisper Large v3 Turbo (`timestamp_granularities=["word"]`, idioma `pt`) | `GROQ_API_KEY` | ~US$ 0,003 |
+| `groq` (**recomendado**) | Groq Whisper Large v3 Turbo (`timestamp_granularities=["word"]`, idioma `pt`) | `GROQ_API_KEY` | ~US$ 0,003 |
+| `google` (default no código) | Cloud Speech-to-Text v2 | mesma conta de serviço (`GOOGLE_TTS_CREDENTIALS_JSON`); projeto = `GOOGLE_CLOUD_PROJECT_ID` ou `project_id` do JSON | ~US$ 0,05 |
 
 O aligner casa as palavras transcritas com o texto original (tolerando diferenças de pontuação/acento) e produz o mesmo formato de `NarrationAlignment` usado pelo highlight. Se o alinhamento falhar, o áudio toca com tempos estimados ou sem destaque — a narração **não quebra**.
 
@@ -53,43 +53,38 @@ WaveNet (`pt-BR-Wavenet-A`, US$ 4 / milhão) continua disponível via `GOOGLE_TT
 
 ### 1. Ativar APIs
 
-No [Google Cloud Console](https://console.cloud.google.com/) → **APIs e serviços** → **Biblioteca**:
+No [Google Cloud Console](https://console.cloud.google.com/), no projeto da conta de serviço → **APIs e serviços** → **Biblioteca**:
 
-1. **Cloud Text-to-Speech API** — síntese Gemini + Neural2
-2. **Cloud Speech-to-Text API** — alinhamento pós-síntese (só com `NARRATION_ALIGNER=google`, default)
-3. **Groq API** — alternativa de alinhamento com `NARRATION_ALIGNER=groq` (não precisa Speech-to-Text)
+1. **Cloud Text-to-Speech API** — síntese Gemini + Neural2 (obrigatória)
+2. **Cloud Speech-to-Text API** — só se usar `NARRATION_ALIGNER=google`
 
 Confirme que o **faturamento** está ativo no projeto.
 
-### 2. Criar / restringir a chave de API
+### 2. Criar a conta de serviço
 
-**APIs e serviços** → **Credenciais** → chave de API usada na Vercel (`GOOGLE_TTS_API_KEY`):
+1. **IAM e administrador** → **Contas de serviço** → **Criar conta de serviço** (ex.: `narracao-tts`).
+2. Conceder o papel **"Usuário da Plataforma de Agentes"** (`roles/aiplatform.user`, antigo *Vertex AI User*) — dá a permissão `aiplatform.endpoints.predict` que o Gemini-TTS exige.
+3. Na conta criada → **Chaves** → **Adicionar chave** → **Criar nova chave** → **JSON**. O ficheiro descarregado é o valor de `GOOGLE_TTS_CREDENTIALS_JSON`.
+4. Guarde o JSON só na Vercel (nunca no repositório nem no chat).
 
-- **Restrições de API:** permitir Cloud Text-to-Speech API (+ Speech-to-Text se `NARRATION_ALIGNER=google`)
-- **Restrições de aplicativo:** IPs/serviços conforme política (Vercel = sem restrição de IP, ou usar service account).
-
-> **Atenção (Gemini-TTS):** a documentação Google exige a permissão `aiplatform.endpoints.predict` (papel *Vertex AI User*) para a identidade autenticada. Uma API key não tem identidade IAM; se o Google responder 403 com `aiplatform.endpoints.predict`, use `GOOGLE_TTS_CREDENTIALS_JSON` de uma conta de serviço com esse papel. Com API key o app **não** envia `x-goog-user-project` (o projeto da chave já é o de faturação). O motivo exato do erro Google fica no log do servidor (`[GeminiFlashTts] Google respondeu …`).
-
-Alternativa mais segura: **service account** com `GOOGLE_TTS_CREDENTIALS_JSON` (`client_email` + `private_key` + `project_id`).
+> O app pede um token OAuth (JWT → `oauth2.googleapis.com/token`, escopo `cloud-platform`), guarda-o em cache até expirar e envia `x-goog-user-project` = `GOOGLE_CLOUD_PROJECT_ID` ou, sem ele, o `project_id` do JSON. O JSON pode ser colado cru (várias linhas); `\n` literais na `private_key` são convertidos. O motivo exato de qualquer erro Google fica no log do servidor (`[GeminiFlashTts] Google respondeu …`).
 
 ### 3. Variáveis na Vercel
 
 | Variável | Obrigatória | Exemplo |
 |----------|-------------|---------|
-| `GOOGLE_TTS_API_KEY` | sim* | `AIza…` |
-| `GOOGLE_CLOUD_PROJECT_ID` | só com `NARRATION_ALIGNER=google` (sem ele: tempos estimados) | `meu-projeto-123` |
+| `GOOGLE_TTS_CREDENTIALS_JSON` | **sim** (sem ela: "Narração não configurada") | JSON da conta de serviço |
+| `GOOGLE_CLOUD_PROJECT_ID` | não (usa o `project_id` do JSON) | `meu-projeto-123` |
+| `NARRATION_ALIGNER` | recomendado `groq` | `groq` |
+| `GROQ_API_KEY` | sim (se `groq`; sem ela cai no alinhador Google) | `gsk_…` |
 | `GOOGLE_TTS_PROVIDER` | não | `gemini` |
 | `GOOGLE_TTS_MODEL` | não | `gemini-2.5-flash-tts` |
 | `GOOGLE_TTS_GEMINI_VOICE` | não | `Leda` |
 | `GOOGLE_TTS_STYLE_PROMPT` | não | narradora calorosa… |
 | `GOOGLE_TTS_LANGUAGE` | não | `pt-BR` |
-| `NARRATION_ALIGNER` | não | `google` |
-| `GROQ_API_KEY` | sim (se `groq`; sem ela cai no alinhador Google) | `gsk_…` |
-| `TTS_USE_STUB` | não | `false` |
+| `TTS_USE_STUB` | não (só dev/e2e) | `false` |
 
-\* Ou `GOOGLE_TTS_CREDENTIALS_JSON` (neste caso `project_id` no JSON substitui `GOOGLE_CLOUD_PROJECT_ID`).
-
-**Prioridade:** se `GOOGLE_TTS_CREDENTIALS_JSON` estiver definida, a app usa sempre a service account (token OAuth, escopo `cloud-platform`), mesmo que `GOOGLE_TTS_API_KEY` também exista. O JSON pode ser colado cru (várias linhas); `\n` literais na `private_key` são convertidos. O header `x-goog-user-project` usa `GOOGLE_CLOUD_PROJECT_ID` ou, sem ele, o `project_id` do JSON.
+`GOOGLE_TTS_API_KEY` **já não é usada** — pode ser apagada da Vercel.
 
 Para voltar ao Neural2:
 
@@ -102,7 +97,7 @@ GOOGLE_TTS_VOICE=pt-BR-Neural2-C
 
 - Texto narrado = conteúdo da história (nunca apelido da criança).
 - Cloud TTS e Speech-to-Text no plano pago **não usam os dados para treinar** modelos (ver [termos Google Cloud](https://cloud.google.com/terms)).
-- Não usamos a Gemini API (AI Studio) — só APIs Google Cloud com a mesma chave/projeto.
+- Não usamos a Gemini API (AI Studio) — só APIs Google Cloud com a mesma conta de serviço/projeto.
 
 ## Custo estimado por história (~3 000 caracteres, ~3 min de áudio)
 

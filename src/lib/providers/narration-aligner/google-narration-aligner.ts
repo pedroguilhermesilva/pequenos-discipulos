@@ -19,7 +19,6 @@ import { estimateMp3DurationSeconds } from '@/lib/providers/narration-aligner/es
 const SPEECH_SYNC_MAX_SECONDS = 55;
 
 export type GoogleNarrationAlignerConfig = {
-  apiKey?: string;
   credentialsJson?: string;
   /** Obrigatório só no momento do alinhamento (Speech-to-Text v2 usa o projeto no URL). */
   projectId?: string;
@@ -95,19 +94,12 @@ export class GoogleNarrationAligner implements NarrationAligner {
     }
 
     try {
-      const auth = await resolveGoogleTtsAuthorization(
-        this.config.apiKey,
-        this.config.credentialsJson,
-        projectId
-      );
-      const url = `https://speech.googleapis.com/v2/projects/${encodeURIComponent(projectId)}/locations/global/recognizers/_:recognize${auth.urlSuffix}`;
+      const auth = await resolveGoogleTtsAuthorization(this.config.credentialsJson, projectId);
+      const url = `https://speech.googleapis.com/v2/projects/${encodeURIComponent(projectId)}/locations/global/recognizers/_:recognize`;
 
       const response = await fetch(url, {
         method: 'POST',
-        headers:
-          auth.mode === 'service-account'
-            ? { ...auth.headers, 'x-goog-user-project': projectId }
-            : auth.headers,
+        headers: { ...auth.headers, 'x-goog-user-project': projectId },
         body: JSON.stringify({
           config: {
             autoDecodingConfig: {},

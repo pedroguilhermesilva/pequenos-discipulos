@@ -83,31 +83,22 @@ describe('resolveGoogleTtsAuthorization', () => {
     resetGoogleTtsAuthCacheForTests();
   });
 
-  it('with API key only, never sends x-goog-user-project (the key project is the quota project)', async () => {
-    const auth = await resolveGoogleTtsAuthorization('test-key', undefined, 'demo-project');
+  it('uses the service account: Bearer token + x-goog-user-project from the JSON project_id, no ?key=', async () => {
+    const auth = await resolveGoogleTtsAuthorization(RAW_MULTILINE_JSON);
 
-    expect(auth.mode).toBe('api-key');
-    expect(auth.urlSuffix).toBe('?key=test-key');
-    expect(auth.headers['x-goog-user-project']).toBeUndefined();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('prefers the service account over the API key when both are set', async () => {
-    const auth = await resolveGoogleTtsAuthorization('test-key', RAW_MULTILINE_JSON);
-
-    expect(auth.mode).toBe('service-account');
-    expect(auth.urlSuffix).toBe('');
+    expect(auth).not.toHaveProperty('urlSuffix');
     expect(auth.headers.Authorization).toBe('Bearer ya29.token');
     expect(auth.headers['x-goog-user-project']).toBe('tts-test-507913');
+    expect(auth.headers['Content-Type']).toBe('application/json');
   });
 
   it('uses GOOGLE_CLOUD_PROJECT_ID (projectId arg) over the JSON project_id for the header', async () => {
-    const auth = await resolveGoogleTtsAuthorization(undefined, RAW_MULTILINE_JSON, 'other-project');
+    const auth = await resolveGoogleTtsAuthorization(RAW_MULTILINE_JSON, 'other-project');
     expect(auth.headers['x-goog-user-project']).toBe('other-project');
   });
 
   it('requests the cloud-platform scope via JWT bearer grant', async () => {
-    await resolveGoogleTtsAuthorization(undefined, RAW_MULTILINE_JSON);
+    await resolveGoogleTtsAuthorization(RAW_MULTILINE_JSON);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://oauth2.googleapis.com/token');
@@ -120,27 +111,30 @@ describe('resolveGoogleTtsAuthorization', () => {
   });
 
   it('caches the access token until it expires', async () => {
-    await resolveGoogleTtsAuthorization(undefined, RAW_MULTILINE_JSON);
-    await resolveGoogleTtsAuthorization(undefined, RAW_MULTILINE_JSON);
+    await resolveGoogleTtsAuthorization(RAW_MULTILINE_JSON);
+    await resolveGoogleTtsAuthorization(RAW_MULTILINE_JSON);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     vi.useFakeTimers();
     vi.setSystemTime(Date.now() + 3600 * 1000);
-    await resolveGoogleTtsAuthorization(undefined, RAW_MULTILINE_JSON);
+    await resolveGoogleTtsAuthorization(RAW_MULTILINE_JSON);
     vi.useRealTimers();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('falls back to the API key (with an error log) if the JSON is unusable', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const auth = await resolveGoogleTtsAuthorization('test-key', '{"project_id":"x"}');
-
-    expect(auth.mode).toBe('api-key');
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('GOOGLE_TTS_CREDENTIALS_JSON'));
-    errorSpy.mockRestore();
+  it('unusable JSON → clear TTS_NOT_CONFIGURED error (no fallback)', async () => {
+    await expect(resolveGoogleTtsAuthorization('{"project_id":"x"}')).rejects.toMatchObject({
+      code: 'TTS_NOT_CONFIGURED',
+      message: expect.stringMatching(/client_email ou private_key/),
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('throws a clear error when nothing is configured', async () => {
-    await expect(resolveGoogleTtsAuthorization()).rejects.toThrow(/não configurado/);
+  it('missing JSON → "Narração não configurada: falta GOOGLE_TTS_CREDENTIALS_JSON"', async () => {
+    await expect(resolveGoogleTtsAuthorization(undefined)).rejects.toMatchObject({
+      code: 'TTS_NOT_CONFIGURED',
+      message: expect.stringContaining('Narração não configurada: falta GOOGLE_TTS_CREDENTIALS_JSON'),
+    });
+    await expect(resolveGoogleTtsAuthorization('   ')).rejects.toMatchObject({ code: 'TTS_NOT_CONFIGURED' });
   });
 });

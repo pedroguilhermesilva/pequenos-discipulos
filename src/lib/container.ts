@@ -4,11 +4,10 @@ import { StubLlmProvider } from '@/lib/providers/stubs/stub-llm.provider';
 import { ChatCompletionsLlmProvider } from '@/lib/providers/llm/chat-completions.provider';
 import { ElevenLabsSfxProvider } from '@/lib/providers/elevenlabs/elevenlabs-sfx.provider';
 import {
-  createGoogleTtsProvider,
   resolveGoogleTtsRuntimeConfig,
+  selectTtsProvider,
 } from '@/lib/providers/google/create-google-tts-provider';
 import { StubSfxProvider } from '@/lib/providers/stubs/stub-sfx.provider';
-import { StubTtsProvider } from '@/lib/providers/stubs/stub-tts.provider';
 import { PrismaAdaptationRepository } from '@/lib/repositories/prisma/prisma-adaptation.repository';
 import { PrismaChildProfileRepository } from '@/lib/repositories/prisma/prisma-child-profile.repository';
 import { PrismaCollectionRepository } from '@/lib/repositories/prisma/prisma-collection.repository';
@@ -53,13 +52,7 @@ const llmProvider = useLlmStub
     });
 
 const googleTtsRuntimeConfig = resolveGoogleTtsRuntimeConfig(process.env);
-const useTtsStub =
-  process.env.TTS_USE_STUB === 'true' ||
-  (!googleTtsRuntimeConfig.apiKey && !googleTtsRuntimeConfig.credentialsJson);
-
-const ttsProvider = useTtsStub
-  ? new StubTtsProvider()
-  : createGoogleTtsProvider(googleTtsRuntimeConfig);
+const ttsProvider = selectTtsProvider(googleTtsRuntimeConfig, process.env);
 
 const elevenKey = process.env.ELEVENLABS_API_KEY?.trim() ?? '';
 const elevenBaseUrl =

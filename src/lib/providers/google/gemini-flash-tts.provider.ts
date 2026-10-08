@@ -1,5 +1,8 @@
 import { DomainError } from '@/lib/domain/errors';
-import { resolveGoogleTtsAuthorization } from '@/lib/providers/google/google-tts-auth';
+import {
+  MISSING_CREDENTIALS_MESSAGE,
+  resolveGoogleTtsAuthorization,
+} from '@/lib/providers/google/google-tts-auth';
 import {
   describeGoogleApiError,
   logGoogleApiError,
@@ -17,7 +20,7 @@ import type {
 const SYNTHESIZE_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
 export interface GeminiFlashTtsConfig {
-  apiKey?: string;
+  /** JSON da service account (GOOGLE_TTS_CREDENTIALS_JSON). Validado só ao sintetizar. */
   credentialsJson?: string;
   /** Opcional: só enviado em x-goog-user-project quando conhecido. */
   projectId?: string;
@@ -76,13 +79,12 @@ export class GeminiFlashTtsProvider implements TtsProvider {
     contentType: string;
     durationMs?: number;
   }> {
-    const auth = await resolveGoogleTtsAuthorization(
-      this.config.apiKey,
-      this.config.credentialsJson,
-      this.config.projectId
-    );
+    if (!this.config.credentialsJson?.trim()) {
+      throw new DomainError('TTS_NOT_CONFIGURED', MISSING_CREDENTIALS_MESSAGE);
+    }
+    const auth = await resolveGoogleTtsAuthorization(this.config.credentialsJson, this.config.projectId);
 
-    const response = await fetch(`${SYNTHESIZE_URL}${auth.urlSuffix}`, {
+    const response = await fetch(SYNTHESIZE_URL, {
       method: 'POST',
       headers: auth.headers,
       body: JSON.stringify({
@@ -106,7 +108,7 @@ export class GeminiFlashTtsProvider implements TtsProvider {
       logGoogleApiError(
         'GeminiFlashTts',
         describeGoogleApiError(response.status, errorBody),
-        { model: this.config.modelName, voice: this.config.voiceName, auth: auth.mode }
+        { model: this.config.modelName, voice: this.config.voiceName }
       );
       throw new DomainError(
         'TTS_NOT_CONFIGURED',

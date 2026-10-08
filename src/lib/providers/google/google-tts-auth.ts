@@ -1,4 +1,5 @@
 import { SignJWT, importPKCS8 } from 'jose';
+import { DomainError } from '@/lib/domain/errors';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const CLOUD_PLATFORM_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
@@ -9,13 +10,11 @@ export type ServiceAccountCredentials = {
   project_id?: string;
 };
 
-export type GoogleAuthMode = 'service-account' | 'api-key';
-
 export type GoogleTtsAuthorization = {
-  mode: GoogleAuthMode;
   headers: Record<string, string>;
-  urlSuffix: string;
 };
+
+export const MISSING_CREDENTIALS_MESSAGE = 'Narração não configurada: falta GOOGLE_TTS_CREDENTIALS_JSON.';
 
 const tokenCache = new Map<string, { value: string; expiresAtMs: number }>();
 
@@ -173,53 +172,35 @@ export function extractGoogleProjectId(credentialsJson?: string): string | undef
 }
 
 /**
- * Autorização para APIs Google (TTS / Speech-to-Text).
- * Prioridade: service account (GOOGLE_TTS_CREDENTIALS_JSON) → API key.
- * O Gemini-TTS exige identidade IAM (aiplatform.endpoints.predict), que só a service account tem.
+ * Autorização para APIs Google (TTS / Speech-to-Text) — só service account
+ * (`GOOGLE_TTS_CREDENTIALS_JSON`). O Gemini-TTS exige identidade IAM
+ * (aiplatform.endpoints.predict), que uma API key não tem.
+ * `x-goog-user-project` = GOOGLE_CLOUD_PROJECT_ID ou, sem ele, o project_id do JSON.
  */
 export async function resolveGoogleTtsAuthorization(
-  apiKey?: string,
   credentialsJson?: string,
   projectId?: string
 ): Promise<GoogleTtsAuthorization> {
-  if (credentialsJson?.trim()) {
-    let credentials: ServiceAccountCredentials | null = null;
-    try {
-      credentials = parseServiceAccountCredentials(credentialsJson);
-    } catch (error) {
-      if (!apiKey) throw error;
-      console.error(
-        `[GoogleAuth] ${(error as Error).message} A usar GOOGLE_TTS_API_KEY como alternativa (o Gemini-TTS pode recusar).`
-      );
-    }
-
-    if (credentials) {
-      const accessToken = await getAccessToken(credentials);
-      const billingProject = projectId?.trim() || credentials.project_id;
-      return {
-        mode: 'service-account',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-          ...(billingProject ? { 'x-goog-user-project': billingProject } : {}),
-        },
-        urlSuffix: '',
-      };
-    }
+  if (!credentialsJson?.trim()) {
+    throw new DomainError('TTS_NOT_CONFIGURED', MISSING_CREDENTIALS_MESSAGE);
   }
 
-  if (apiKey) {
-    // Com API key, o projeto da própria chave é o projeto de quota/faturação.
-    // x-goog-user-project exige uma identidade IAM com serviceusage.services.use,
-    // que uma API key não tem — enviá-lo pode causar 403 (USER_PROJECT_DENIED).
-    return {
-      mode: 'api-key',
-      headers: { 'Content-Type': 'application/json' },
-      urlSuffix: `?key=${encodeURIComponent(apiKey)}`,
-    };
+  let credentials: ServiceAccountCredentials;
+  try {
+    credentials = parseServiceAccountCredentials(credentialsJson);
+  } catch (error) {
+    throw new DomainError('TTS_NOT_CONFIGURED', (error as Error).message);
   }
 
-  throw new Error('Google TTS não configurado.');
+  const accessToken = await getAccessToken(credentials);
+  const billingProject = projectId?.trim() || credentials.project_id;
+  return {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      ...(billingProject ? { 'x-goog-user-project': billingProject } : {}),
+    },
+  };
 }
 
 export function resetGoogleTtsAuthCacheForTests() {

@@ -1,5 +1,8 @@
 import { DomainError } from '@/lib/domain/errors';
-import { resolveGoogleTtsAuthorization } from '@/lib/providers/google/google-tts-auth';
+import {
+  MISSING_CREDENTIALS_MESSAGE,
+  resolveGoogleTtsAuthorization,
+} from '@/lib/providers/google/google-tts-auth';
 import { buildSsmlWithWordMarks } from '@/lib/providers/google/google-tts-ssml';
 import {
   describeGoogleApiError,
@@ -21,7 +24,6 @@ const SYNTHESIZE_URL =
   'https://texttospeech.googleapis.com/v1beta1/text:synthesize';
 
 export interface GoogleTtsConfig {
-  apiKey?: string;
   credentialsJson?: string;
   voiceName: string;
   languageCode: string;
@@ -83,12 +85,12 @@ export class GoogleTtsProvider implements TtsProvider {
     durationMs?: number;
     timepoints?: GoogleSynthesizeResponse['timepoints'];
   }> {
-    const auth = await resolveGoogleTtsAuthorization(
-      this.config.apiKey,
-      this.config.credentialsJson
-    );
+    if (!this.config.credentialsJson?.trim()) {
+      throw new DomainError('TTS_NOT_CONFIGURED', MISSING_CREDENTIALS_MESSAGE);
+    }
+    const auth = await resolveGoogleTtsAuthorization(this.config.credentialsJson);
 
-    const response = await fetch(`${SYNTHESIZE_URL}${auth.urlSuffix}`, {
+    const response = await fetch(SYNTHESIZE_URL, {
       method: 'POST',
       headers: auth.headers,
       body: JSON.stringify({
@@ -111,7 +113,7 @@ export class GoogleTtsProvider implements TtsProvider {
       logGoogleApiError(
         'GoogleTts',
         describeGoogleApiError(response.status, errorBody),
-        { voice: this.config.voiceName, auth: auth.mode }
+        { voice: this.config.voiceName }
       );
       throw new DomainError(
         'TTS_NOT_CONFIGURED',

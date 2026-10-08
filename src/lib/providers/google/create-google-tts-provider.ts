@@ -15,10 +15,12 @@ import { GoogleTtsProvider } from '@/lib/providers/google/google-tts.provider';
 import type { NarrationAligner } from '@/lib/providers/interfaces/narration-aligner';
 import { createNarrationAligner } from '@/lib/providers/narration-aligner/create-narration-aligner';
 import type { TtsProvider } from '@/lib/providers/interfaces/tts.provider';
+import { StubTtsProvider, UnconfiguredTtsProvider } from '@/lib/providers/stubs/stub-tts.provider';
+import { MISSING_CREDENTIALS_MESSAGE } from '@/lib/providers/google/google-tts-auth';
 
 export type GoogleTtsRuntimeConfig = {
   provider: GoogleTtsProviderKind;
-  apiKey?: string;
+  /** JSON da service account (único método de autenticação suportado). */
   credentialsJson?: string;
   projectId?: string;
   languageCode: string;
@@ -31,7 +33,6 @@ export type GoogleTtsRuntimeConfig = {
 
 export function resolveGoogleTtsRuntimeConfig(env: NodeJS.ProcessEnv = process.env): GoogleTtsRuntimeConfig {
   const provider = parseGoogleTtsProvider(env.GOOGLE_TTS_PROVIDER ?? DEFAULT_GOOGLE_TTS_PROVIDER);
-  const apiKey = env.GOOGLE_TTS_API_KEY?.trim() || undefined;
   const credentialsJson = env.GOOGLE_TTS_CREDENTIALS_JSON?.trim() || undefined;
   const projectId =
     env.GOOGLE_CLOUD_PROJECT_ID?.trim() ||
@@ -52,7 +53,6 @@ export function resolveGoogleTtsRuntimeConfig(env: NodeJS.ProcessEnv = process.e
 
   return {
     provider,
-    apiKey,
     credentialsJson,
     projectId,
     languageCode,
@@ -71,7 +71,6 @@ export function createGoogleTtsProvider(
 ): TtsProvider {
   if (config.provider === 'neural2') {
     return new GoogleTtsProvider({
-      apiKey: config.apiKey,
       credentialsJson: config.credentialsJson,
       voiceName: config.neuralVoice,
       languageCode: config.languageCode,
@@ -83,7 +82,6 @@ export function createGoogleTtsProvider(
   const aligner =
     narrationAligner ??
     createNarrationAligner(env, {
-      apiKey: config.apiKey,
       credentialsJson: config.credentialsJson,
       projectId: config.projectId,
       languageCode: config.languageCode,
@@ -91,7 +89,6 @@ export function createGoogleTtsProvider(
 
   return new GeminiFlashTtsProvider(
     {
-      apiKey: config.apiKey,
       credentialsJson: config.credentialsJson,
       projectId: config.projectId,
       modelName: config.geminiModel,
@@ -101,4 +98,19 @@ export function createGoogleTtsProvider(
     },
     aligner
   );
+}
+
+/**
+ * Escolhe o provider de narração. Nunca lança erro (corre na avaliação do módulo / build):
+ * - TTS_USE_STUB=true → stub (áudio silencioso, dev/e2e);
+ * - GOOGLE_TTS_CREDENTIALS_JSON definida → Google (Gemini ou Neural2);
+ * - caso contrário → provider "não configurado" que só falha quando a narração é pedida.
+ */
+export function selectTtsProvider(
+  config: GoogleTtsRuntimeConfig,
+  env: NodeJS.ProcessEnv = process.env
+): TtsProvider {
+  if (env.TTS_USE_STUB === 'true') return new StubTtsProvider();
+  if (!config.credentialsJson) return new UnconfiguredTtsProvider(MISSING_CREDENTIALS_MESSAGE);
+  return createGoogleTtsProvider(config, env);
 }

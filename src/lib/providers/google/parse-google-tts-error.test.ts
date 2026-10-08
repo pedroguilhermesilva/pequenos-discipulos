@@ -50,15 +50,6 @@ describe('parseGoogleTtsError', () => {
     expect(msg).toContain('SERVICE_DISABLED');
   });
 
-  it('API_KEY_SERVICE_BLOCKED → key restrictions', () => {
-    const msg = parseGoogleTtsError(
-      403,
-      googleError(403, 'PERMISSION_DENIED', 'Requests to this API texttospeech method are blocked.', 'API_KEY_SERVICE_BLOCKED')
-    );
-    expect(msg).toMatch(/restrições/);
-    expect(msg).toContain('API_KEY_SERVICE_BLOCKED');
-  });
-
   it('USER_PROJECT_DENIED → project header/permission', () => {
     const msg = parseGoogleTtsError(
       403,
@@ -68,13 +59,30 @@ describe('parseGoogleTtsError', () => {
     expect(msg).toContain('USER_PROJECT_DENIED');
   });
 
-  it('aiplatform.endpoints.predict → Gemini-TTS needs IAM permission (service account)', () => {
+  it('aiplatform.endpoints.predict / IAM_PERMISSION_DENIED → service account needs "Usuário da Plataforma de Agentes"', () => {
     const msg = parseGoogleTtsError(
       403,
       googleError(403, 'PERMISSION_DENIED', "Permission 'aiplatform.endpoints.predict' denied on resource.", 'IAM_PERMISSION_DENIED')
     );
-    expect(msg).toMatch(/aiplatform/);
-    expect(msg).toMatch(/conta de serviço|GOOGLE_TTS_CREDENTIALS_JSON/);
+    expect(msg).toContain('Usuário da Plataforma de Agentes');
+    expect(msg).toContain('aiplatform.user');
+    expect(msg).toMatch(/Vertex AI User/);
+    expect(msg).toMatch(/conta de serviço/);
+    expect(msg).not.toMatch(/chave de API|API key|GOOGLE_TTS_API_KEY/i);
+  });
+
+  it('no message ever suggests an API key', () => {
+    const cases: Array<[number, string | undefined, string]> = [
+      [403, 'SERVICE_DISABLED', 'disabled'],
+      [403, 'USER_PROJECT_DENIED', 'Caller does not have required permission to use project x.'],
+      [403, 'BILLING_DISABLED', 'billing'],
+      [403, 'API_KEY_SERVICE_BLOCKED', 'blocked'],
+      [400, 'API_KEY_INVALID', 'API key not valid.'],
+      [401, 'ACCESS_TOKEN_EXPIRED', 'Request had invalid authentication credentials.'],
+    ];
+    for (const [status, reason, message] of cases) {
+      expect(parseGoogleTtsError(status, googleError(status, 'X', message, reason))).not.toMatch(/GOOGLE_TTS_API_KEY|chave/i);
+    }
   });
 
   it('BILLING_DISABLED → billing', () => {
@@ -85,13 +93,12 @@ describe('parseGoogleTtsError', () => {
     expect(msg).toMatch(/faturação|faturamento/);
   });
 
-  it('API_KEY_INVALID (400) → invalid key, not "invalid request"', () => {
+  it('401 invalid credentials → points to GOOGLE_TTS_CREDENTIALS_JSON', () => {
     const msg = parseGoogleTtsError(
-      400,
-      googleError(400, 'INVALID_ARGUMENT', 'API key not valid. Please pass a valid API key.', 'API_KEY_INVALID')
+      401,
+      googleError(401, 'UNAUTHENTICATED', 'Request had invalid authentication credentials.')
     );
-    expect(msg).toMatch(/GOOGLE_TTS_API_KEY/);
-    expect(msg).toMatch(/inválida/);
+    expect(msg).toContain('GOOGLE_TTS_CREDENTIALS_JSON');
   });
 
   it('unknown 403 includes Google status and message instead of a generic guess', () => {

@@ -40,17 +40,17 @@ Gera e cacheia áudio por adaptação (`AudioAsset` + Vercel Blob privado).
 | Provider | Env | Uso |
 |----------|-----|-----|
 | `GeminiFlashTtsProvider` | `GOOGLE_TTS_PROVIDER=gemini`, `GOOGLE_TTS_MODEL`, `GOOGLE_TTS_GEMINI_VOICE`, `GOOGLE_TTS_STYLE_PROMPT`, `GOOGLE_CLOUD_PROJECT_ID` | Narração expressiva + `NarrationAligner` |
-| `GoogleNarrationAligner` | `NARRATION_ALIGNER=google` (default), mesma chave Google | Alinhamento via Speech-to-Text v2 |
-| `GroqWhisperNarrationAligner` | `NARRATION_ALIGNER=groq`, `GROQ_API_KEY` | Alinhamento via Whisper Large v3 Turbo |
+| `GoogleNarrationAligner` | `NARRATION_ALIGNER=google` (default no código), mesma conta de serviço | Alinhamento via Speech-to-Text v2 |
+| `GroqWhisperNarrationAligner` | `NARRATION_ALIGNER=groq`, `GROQ_API_KEY` (**recomendado**) | Alinhamento via Whisper Large v3 Turbo |
 | `GoogleTtsProvider` | `GOOGLE_TTS_PROVIDER=neural2`, `GOOGLE_TTS_VOICE` (default `pt-BR-Neural2-C`) | Narração + timepoints SSML nativos |
-| `StubTtsProvider` | `TTS_USE_STUB=true` ou sem credenciais Google | Dev / CI |
+| `StubTtsProvider` | `TTS_USE_STUB=true` | Dev / CI |
+| `UnconfiguredTtsProvider` | sem `GOOGLE_TTS_CREDENTIALS_JSON` | Falha só ao pedir narração: "Narração não configurada: falta GOOGLE_TTS_CREDENTIALS_JSON." |
 | `ElevenLabsSfxProvider` | `ELEVENLABS_API_KEY` | Efeitos sonoros (removido no #5) |
 
-Autenticação Google TTS:
+Autenticação Google TTS (só conta de serviço):
 
-1. **API key** — `GOOGLE_TTS_API_KEY`; restringir às APIs Cloud Text-to-Speech **e** Cloud Speech-to-Text (Gemini).
-2. **Service account** — `GOOGLE_TTS_CREDENTIALS_JSON` com `client_email` + `private_key` + `project_id`; OAuth bearer no servidor (via `jose`).
-3. **Projeto** — `GOOGLE_CLOUD_PROJECT_ID` (obrigatório para Gemini + alinhamento, se não vier no JSON).
+1. **Service account** — `GOOGLE_TTS_CREDENTIALS_JSON` com `client_email` + `private_key` + `project_id`; OAuth bearer no servidor (via `jose`, escopo `cloud-platform`, token em cache). Papel necessário: "Usuário da Plataforma de Agentes" (`roles/aiplatform.user`).
+2. **Projeto** — `GOOGLE_CLOUD_PROJECT_ID` opcional; sem ele usa o `project_id` do JSON.
 
 Ver comparativo de vozes: `docs/google-tts-voices-pt-br.md`.
 

@@ -12,7 +12,7 @@ describe('createNarrationAligner', () => {
   it('defaults to Google aligner', () => {
     const aligner = createNarrationAligner(
       env({}),
-      { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
+      { credentialsJson: '{}', projectId: 'demo-project', languageCode: 'pt-BR' }
     );
 
     expect(parseNarrationAligner(undefined)).toBe('google');
@@ -23,18 +23,18 @@ describe('createNarrationAligner', () => {
   it('creates Groq aligner when configured', () => {
     const aligner = createNarrationAligner(
       env({ NARRATION_ALIGNER: 'groq', GROQ_API_KEY: 'gsk-test' }),
-      { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
+      { credentialsJson: '{}', projectId: 'demo-project', languageCode: 'pt-BR' }
     );
 
     expect(aligner).toBeInstanceOf(GroqWhisperNarrationAligner);
     expect(aligner.id).toBe('groq');
   });
 
-  it('falls back to Google aligner (no throw) when Groq is selected without API key', () => {
+  it('falls back to Google aligner (no throw) when Groq is selected without GROQ_API_KEY', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const aligner = createNarrationAligner(
       env({ NARRATION_ALIGNER: 'groq' }),
-      { apiKey: 'test-key', projectId: 'demo-project', languageCode: 'pt-BR' }
+      { credentialsJson: '{}', projectId: 'demo-project', languageCode: 'pt-BR' }
     );
 
     expect(aligner).toBeInstanceOf(GoogleNarrationAligner);
@@ -44,7 +44,7 @@ describe('createNarrationAligner', () => {
 
   it('does not throw when Google aligner is created without project ID', () => {
     expect(() =>
-      createNarrationAligner(env({}), { apiKey: 'test-key', languageCode: 'pt-BR' })
+      createNarrationAligner(env({}), { languageCode: 'pt-BR' })
     ).not.toThrow();
   });
 });

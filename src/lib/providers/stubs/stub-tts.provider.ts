@@ -67,7 +67,13 @@ export class StubTtsProvider implements TtsProvider {
 }
 
 export class UnconfiguredTtsProvider implements TtsProvider {
+  constructor(private readonly message = 'TTS não configurado.') {}
+
   async generateSpeech(): Promise<TtsGenerateResult> {
-    throw new DomainError('TTS_NOT_CONFIGURED', 'TTS não configurado.');
+    throw new DomainError('TTS_NOT_CONFIGURED', this.message);
+  }
+
+  async generateSpeechWithTimestamps(): Promise<TtsGenerateWithTimestampsResult> {
+    throw new DomainError('TTS_NOT_CONFIGURED', this.message);
   }
 }
