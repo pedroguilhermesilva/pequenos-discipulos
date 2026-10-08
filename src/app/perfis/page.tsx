@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProfilePicker } from '@/components/profiles/ProfilePicker';
-import { ChildProfileProvider, useChildProfiles } from '@/components/profiles/ChildProfileProvider';
+import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 
 function PerfisContent() {
   const router = useRouter();
@@ -32,9 +32,5 @@ function PerfisContent() {
 }
 
 export default function PerfisPage() {
-  return (
-    <ChildProfileProvider>
-      <PerfisContent />
-    </ChildProfileProvider>
-  );
+  return <PerfisContent />;
 }

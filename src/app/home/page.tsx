@@ -8,7 +8,7 @@ import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 import { getAgeGroupLabel } from '@/lib/onboarding/constants';
 import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
 import { getStoryHref, type StorySummary } from '@/lib/stories';
-import { getLibraryStoriesAction } from '@/lib/stories/library-actions';
+import { getChildStoriesAction } from '@/lib/stories/library-actions';
 import { cn } from '@/lib/cn';
 
 function profileFromPreferences(preferences = DEFAULT_PREFERENCES) {
@@ -109,9 +109,10 @@ function HomePageContent() {
   const { activeProfile } = useChildProfiles();
   const preferences = activeProfile?.preferences ?? DEFAULT_PREFERENCES;
   const childProfile = profileFromPreferences(preferences);
-  const { data: stories = [] } = useQuery({
+  const { data: stories = [], isLoading: isLibraryLoading } = useQuery({
     queryKey: ['library', activeProfile?.id ?? 'none'],
-    queryFn: () => getLibraryStoriesAction(),
+    queryFn: () => getChildStoriesAction(activeProfile?.id),
+    enabled: Boolean(activeProfile?.id),
   });
   const continueStory = stories.find(
     (s) => s.progress !== undefined && s.progress > 0 && s.progress < 100
@@ -252,6 +253,13 @@ function HomePageContent() {
               </div>
             </div>
           </section>
+        )}
+
+        {isLibraryLoading && stories.length === 0 && (
+          <p className="text-sm text-oliva flex items-center gap-2" aria-live="polite">
+            <span className="inline-block w-4 h-4 rounded-full border-2 border-laranja/30 border-t-laranja animate-spin" />
+            A carregar histórias de {childProfile.name}…
+          </p>
         )}
 
         {/* Story shelf */}

@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { AppSidebar } from '@/components/AppSidebar';
 import { AppProfileGuard } from '@/components/profiles/AppProfileGuard';
-import { ChildProfileProvider } from '@/components/profiles/ChildProfileProvider';
 import { MobileMenuButton } from '@/components/ui/MobileMenuButton';
 
 const SIDEBAR_COLLAPSED_KEY = 'pequenos-discipulos-sidebar-collapsed';
@@ -30,30 +29,28 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <ChildProfileProvider>
-      <AppProfileGuard>
-        <div className="bg-pergaminho textura-pergaminho text-tinta min-h-screen">
-          <div className="flex h-screen overflow-hidden">
-            <AppSidebar
-              open={sidebarOpen}
-              collapsed={sidebarCollapsed}
-              onClose={() => setSidebarOpen(false)}
-              onToggleCollapse={toggleSidebarCollapsed}
-            />
+    <AppProfileGuard>
+      <div className="bg-pergaminho textura-pergaminho text-tinta min-h-screen">
+        <div className="flex h-screen overflow-hidden">
+          <AppSidebar
+            open={sidebarOpen}
+            collapsed={sidebarCollapsed}
+            onClose={() => setSidebarOpen(false)}
+            onToggleCollapse={toggleSidebarCollapsed}
+          />
 
-            <main className="flex-1 min-w-0 w-full overflow-y-auto p-4 md:p-8">
-              <div className="max-w-6xl mx-auto">
-                <MobileMenuButton
-                  expanded={sidebarOpen}
-                  onClick={() => setSidebarOpen(true)}
-                />
+          <main className="flex-1 min-w-0 w-full overflow-y-auto p-4 md:p-8">
+            <div className="max-w-6xl mx-auto">
+              <MobileMenuButton
+                expanded={sidebarOpen}
+                onClick={() => setSidebarOpen(true)}
+              />
 
-                {children}
-              </div>
-            </main>
-          </div>
+              {children}
+            </div>
+          </main>
         </div>
-      </AppProfileGuard>
-    </ChildProfileProvider>
+      </div>
+    </AppProfileGuard>
   );
 }

@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { listChildProfilesAction, setActiveChildProfile } from '@/lib/profiles/actions';
+import { prisma } from '@/lib/db/prisma';
+import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
+import {
+  deleteChildProfileAction,
+  getActiveChildProfileIdAction,
+  listChildProfilesAction,
+  setActiveChildProfile,
+} from '@/lib/profiles/actions';
+
+const DEV_USER_ID = process.env.DEV_USER_ID ?? 'dev-user-1';
 
 const cookieStore = new Map<string, string>();
 
@@ -11,6 +20,9 @@ vi.mock('next/headers', () => ({
     },
     set: (name: string, value: string) => {
       cookieStore.set(name, value);
+    },
+    delete: (name: string) => {
+      cookieStore.delete(name);
     },
   })),
 }));
@@ -47,5 +59,48 @@ describe('profiles/actions', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.code).toBe('NOT_FOUND');
+  });
+
+  it('reads the active child profile id from the cookie', async () => {
+    cookieStore.set('active_child_profile_id', 'dev-child-1');
+    const result = await getActiveChildProfileIdAction();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.profileId).toBe('dev-child-1');
+  });
+
+  it('deletes a child profile and switches the active cookie when needed', async () => {
+    await prisma.user.update({
+      where: { id: DEV_USER_ID },
+      data: { subscriptionTier: 'premium' },
+    });
+
+    const extraProfile = await prisma.childProfile.create({
+      data: {
+        id: 'test-child-delete',
+        userId: DEV_USER_ID,
+        name: 'Teste Excluir',
+        avatarColor: 'ceu',
+        preferences: { ...DEFAULT_PREFERENCES, childName: 'Teste Excluir', ageGroup: '9-11' },
+      },
+    });
+
+    cookieStore.set('active_child_profile_id', extraProfile.id);
+
+    const result = await deleteChildProfileAction(extraProfile.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.deletedId).toBe(extraProfile.id);
+    expect(result.data.activeProfileId).toBe('dev-child-1');
+    expect(cookieStore.get('active_child_profile_id')).toBe('dev-child-1');
+
+    const deleted = await prisma.childProfile.findUnique({ where: { id: extraProfile.id } });
+    expect(deleted).toBeNull();
+
+    await prisma.user.update({
+      where: { id: DEV_USER_ID },
+      data: { subscriptionTier: 'free' },
+    });
   });
 });
