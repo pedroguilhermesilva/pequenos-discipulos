@@ -124,6 +124,19 @@ describe('VoteService', () => {
       expect(result.voteCount).toBe(1);
     });
 
+    it('rejects voting on own adaptation', async () => {
+      vi.mocked(adaptations.findById).mockResolvedValue({
+        id: 'adapt-1',
+        createdByUserId: 'user-a',
+        status: 'community',
+      } as never);
+
+      await expect(buildService().vote('user-a', 'adapt-1', 1)).rejects.toBeInstanceOf(
+        UnauthorizedError
+      );
+      expect(votes.upsert).not.toHaveBeenCalled();
+    });
+
     it('rejects voting on draft adaptations from other users', async () => {
       vi.mocked(adaptations.findById).mockResolvedValue({
         id: 'adapt-1',

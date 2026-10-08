@@ -26,7 +26,10 @@ import { ParentGateModal } from '@/components/stories/ParentGateModal';
 import { StoryAdaptationContent } from '@/components/stories/StoryAdaptationContent';
 import { StoryNarrationSection } from '@/components/stories/StoryNarrationSection';
 import { StoryAgeContent } from '@/components/stories/StoryAgeContent';
+import { AdaptationStatusBadge } from '@/components/stories/AdaptationStatusBadge';
+import { CommunityVersionsPanel } from '@/components/stories/CommunityVersionsPanel';
 import { StoryCollectionsSidebar } from '@/components/stories/StoryCollectionsSidebar';
+import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
 import { StoryQuizSection } from '@/components/stories/StoryQuizSection';
 import type { StoryAudioPlayRequest } from '@/lib/stories/audio-play';
 import {
@@ -62,6 +65,7 @@ export function StoryViewerContent({
   onBack,
   onRegenerate,
 }: StoryViewerContentProps) {
+  const { activeProfile } = useChildProfiles();
   const [passageDialogOpen, setPassageDialogOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(story.currentPage ?? 1);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
@@ -75,6 +79,9 @@ export function StoryViewerContent({
   } | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [rating, setRating] = useState(4.9);
+  const [viewingAdaptationId, setViewingAdaptationId] = useState(adaptationId);
+  const [viewingStatus, setViewingStatus] = useState<string | null>(null);
+  const displayAdaptationId = viewingAdaptationId ?? adaptationId;
   const [audioToast, setAudioToast] = useState({
     visible: false,
     title: '',
@@ -101,7 +108,7 @@ export function StoryViewerContent({
     initialAdaptationNote ?? null
   );
   const [adaptationLoading, setAdaptationLoading] = useState(
-    Boolean(adaptationId) && !initialAdaptationContent
+    Boolean(displayAdaptationId) && !initialAdaptationContent
   );
 
   const totalPages = adaptationContent?.pages.length ?? story.totalPages;
@@ -141,16 +148,20 @@ export function StoryViewerContent({
   }, [initialAdaptationContent]);
 
   useEffect(() => {
-    if (!adaptationId) {
+    setViewingAdaptationId(adaptationId);
+  }, [adaptationId]);
+
+  useEffect(() => {
+    if (!displayAdaptationId) {
       setAdaptationLoading(false);
       return;
     }
 
-    if (initialAdaptationContent) {
+    if (displayAdaptationId === adaptationId && initialAdaptationContent) {
       return;
     }
 
-    const currentAdaptationId = adaptationId;
+    const currentAdaptationId = displayAdaptationId;
     let cancelled = false;
 
     async function loadAdaptation() {
@@ -175,7 +186,36 @@ export function StoryViewerContent({
     return () => {
       cancelled = true;
     };
-  }, [adaptationId, initialAdaptationContent]);
+  }, [adaptationId, displayAdaptationId, initialAdaptationContent]);
+
+  useEffect(() => {
+    if (!displayAdaptationId) return;
+    void fetch(`/api/adaptations/${displayAdaptationId}/status`)
+      .then((response) => response.json())
+      .then(
+        (json: {
+          ok: boolean;
+          data?: { status: string; voteScore?: number };
+        }) => {
+          if (json.ok && json.data?.status) {
+            setViewingStatus(json.data.status);
+            if (json.data.voteScore != null) {
+              setRating(json.data.voteScore);
+            }
+          }
+        }
+      )
+      .catch(() => undefined);
+  }, [displayAdaptationId]);
+
+  const handleSelectCommunityVersion = useCallback((id: string) => {
+    setViewingAdaptationId(id);
+    setCurrentPage(1);
+  }, []);
+
+  const viewingOtherVersion = Boolean(
+    adaptationId && displayAdaptationId && displayAdaptationId !== adaptationId
+  );
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -215,7 +255,7 @@ export function StoryViewerContent({
         return;
       }
 
-      if (!adaptationId) {
+      if (!displayAdaptationId) {
         showError('Gere uma adaptação da história para ouvir os sons interativos.');
         return;
       }
@@ -225,7 +265,7 @@ export function StoryViewerContent({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            adaptationId,
+            adaptationId: displayAdaptationId,
             blockKey: request.blockKey,
             kind: request.kind,
             text: request.text,
@@ -250,7 +290,7 @@ export function StoryViewerContent({
         showError('Falha de rede ao gerar o áudio.');
       }
     },
-    [adaptationId]
+    [displayAdaptationId]
   );
 
   const hideAudioToast = useCallback(() => {
@@ -365,7 +405,12 @@ export function StoryViewerContent({
                 Voltar
               </button>
               <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <h2 className="font-display text-xl md:text-2xl font-bold text-tinta">{story.title}</h2>
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <h2 className="font-display text-xl md:text-2xl font-bold text-tinta">{story.title}</h2>
+                  {viewingStatus ? (
+                    <AdaptationStatusBadge status={viewingStatus} voteScore={rating} compact />
+                  ) : null}
+                </div>
                 <p className="text-sm text-oliva shrink-0">
                   <span className="inline-flex items-center font-semibold text-laranja bg-laranja-suave px-2 py-0.5 rounded-md text-xs">
                     {passageReference}
@@ -428,7 +473,7 @@ export function StoryViewerContent({
                 )}
               </div>
 
-              {adaptationId ? (
+              {displayAdaptationId ? (
                 adaptationLoading || !adaptationContent ? (
                   <p
                     className="text-center text-oliva text-sm py-8"
@@ -438,7 +483,7 @@ export function StoryViewerContent({
                   </p>
                 ) : contentType === 'audio' ? (
                   <StoryNarrationSection
-                    adaptationId={adaptationId}
+                    adaptationId={displayAdaptationId}
                     pageIndex={currentPage - 1}
                     content={adaptationContent}
                     onPageChange={(nextPageIndex) => {
@@ -483,56 +528,70 @@ export function StoryViewerContent({
               {isLastPage && quiz && <StoryQuizSection quiz={quiz} />}
             </div>
 
-            {/* Footer actions */}
-            <div className="px-5 py-4 border-t border-borda flex flex-wrap items-center justify-between gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => openParentGate('approve')}
-                className={cn(
-                  'flex shrink-0 items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition',
-                  saved
-                    ? 'bg-aprovado-claro text-aprovado border border-aprovado/20'
-                    : 'text-oliva bg-pergaminho-escuro hover:bg-pergaminho-escuro/80'
-                )}
-              >
-                <span className="material-symbols-outlined text-base">
-                  {saved ? 'verified' : 'family_restroom'}
-                </span>
-                {saved ? `Aprovada pela família (${rating} ★)` : 'Aprovar em família'}
-              </button>
+            {adaptationId ? (
+              <div className="lg:hidden px-5 pt-4">
+                <CommunityVersionsPanel
+                  anchorAdaptationId={adaptationId}
+                  viewingAdaptationId={displayAdaptationId}
+                  childName={preferences.childName}
+                  childProfileId={activeProfile?.id}
+                  onSelectVersion={handleSelectCommunityVersion}
+                  onAdopted={({ adaptationId: adoptedId }) => {
+                    setViewingAdaptationId(adoptedId);
+                  }}
+                />
+              </div>
+            ) : null}
 
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                {onRegenerate && adaptationId && (
-                  <button
-                    type="button"
-                    onClick={onRegenerate}
-                    className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-vida bg-vida/10 hover:bg-vida/15 border border-vida/25 px-3 py-2.5 rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-vida"
-                  >
-                    <span className="material-symbols-outlined text-base">autorenew</span>
-                    Gerar novamente
-                  </button>
-                )}
+            {/* Footer actions — só para a versão da família; votar outras versões fica no painel da comunidade */}
+            {!viewingOtherVersion ? (
+              <div className="px-5 py-4 border-t border-borda flex flex-wrap items-center justify-between gap-3 shrink-0">
                 <button
                   type="button"
-                  onClick={() => openParentGate('share')}
-                  disabled={getShareButtonState(shareStatus).disabled || isSharing}
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-ceu bg-ceu-claro hover:bg-ceu-claro/80 border border-ceu/20 px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => openParentGate('approve')}
+                  className={cn(
+                    'flex shrink-0 items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition',
+                    saved
+                      ? 'bg-aprovado-claro text-aprovado border border-aprovado/20'
+                      : 'text-oliva bg-pergaminho-escuro hover:bg-pergaminho-escuro/80'
+                  )}
                 >
                   <span className="material-symbols-outlined text-base">
-                    {isSharing ? 'hourglass_top' : 'groups'}
+                    {saved ? 'verified' : 'family_restroom'}
                   </span>
-                  {isSharing ? 'Enviando…' : getShareButtonState(shareStatus).label}
+                  {saved ? `Aprovada pela família (${rating} ★)` : 'Aprovar em família'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => openParentGate('vote')}
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-laranja bg-laranja-suave hover:bg-laranja-suave/80 border border-laranja/25 px-3 py-2.5 rounded-xl transition"
-                >
-                  <span className="material-symbols-outlined text-base">thumb_up</span>
-                  Votar nesta versão
-                </button>
+
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  {onRegenerate && adaptationId && (
+                    <button
+                      type="button"
+                      onClick={onRegenerate}
+                      className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-vida bg-vida/10 hover:bg-vida/15 border border-vida/25 px-3 py-2.5 rounded-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-vida"
+                    >
+                      <span className="material-symbols-outlined text-base">autorenew</span>
+                      Gerar novamente
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openParentGate('share')}
+                    disabled={getShareButtonState(shareStatus).disabled || isSharing}
+                    className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-ceu bg-ceu-claro hover:bg-ceu-claro/80 border border-ceu/20 px-3 py-2.5 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      {isSharing ? 'hourglass_top' : 'groups'}
+                    </span>
+                    {isSharing ? 'Enviando…' : getShareButtonState(shareStatus).label}
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="px-5 py-4 border-t border-borda text-xs text-oliva">
+                Você está lendo uma versão da comunidade. Use os botões acima para votar ou salvar
+                para {preferences.childName}.
+              </div>
+            )}
             {shareFeedback ? (
               <div
                 role="alert"
@@ -607,6 +666,11 @@ export function StoryViewerContent({
             currentStory={story}
             childName={preferences.childName}
             adaptationId={adaptationId}
+            viewingAdaptationId={displayAdaptationId}
+            onSelectVersion={handleSelectCommunityVersion}
+            onAdopted={({ adaptationId: adoptedId }) => {
+              setViewingAdaptationId(adoptedId);
+            }}
           />
         </div>
       </div>

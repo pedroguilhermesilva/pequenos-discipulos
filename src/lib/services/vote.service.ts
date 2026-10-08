@@ -34,7 +34,11 @@ export class VoteService {
       adaptation.createdByUserId === userId ||
       (await this.userStories.findByUserAndAdaptation(userId, adaptationId)) !== null;
 
-    if (!isOwner && !VOTABLE_STATUSES.has(adaptation.status)) {
+    if (isOwner) {
+      throw new UnauthorizedError('Você não pode votar na sua própria versão.');
+    }
+
+    if (!VOTABLE_STATUSES.has(adaptation.status)) {
       throw new UnauthorizedError('Esta adaptação ainda não está disponível para votação.');
     }
 

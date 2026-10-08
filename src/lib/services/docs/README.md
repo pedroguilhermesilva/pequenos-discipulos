@@ -106,9 +106,14 @@ Versão actual dos termos: `CURRENT_CONSENT_VERSION` em `src/lib/privacy/constan
 
 Votos e aprovação familiar — **sempre** atrás de parent gate validado no servidor (`/api/votes`).
 
-- **Voto:** permitido em adaptações comunitárias de outros utilizadores; um voto por utilizador/adaptação (`AdaptationVote` unique).
+- **Voto:** permitido em adaptações com status `community` ou `as_default` de **outros** utilizadores; um voto por utilizador/adaptação (`AdaptationVote` unique, upsert). O **dono não pode votar na própria versão**.
 - **Aprovar em família:** apenas adaptações da família (criadas pelo utilizador ou ligadas via `UserStory`).
-- **Compartilhar com a comunidade:** delega a `ModerationService.submitForCommunityReview` — não publica directo.
+- **Compartilhar com a comunidade:** delega a `ModerationService.submitForCommunityReview` — moderação automática/manual (#12), não depende de 3 votos.
+- **Listagem:** `GET /api/adaptations/[id]/versions` — mesma passagem/versículos/faixa etária, ordenado por `voteScore`; inclui `userVote` e `isOwner` quando autenticado.
+
+## LibraryService (versões da comunidade)
+
+- **`adoptCommunityAdaptation`:** liga uma versão comunitária ao perfil de criança activo (`UserStory` upsert + progresso). Action: `adoptCommunityAdaptationAction`.
 
 ## ModerationService
 

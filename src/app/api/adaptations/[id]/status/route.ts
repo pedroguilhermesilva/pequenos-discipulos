@@ -26,6 +26,8 @@ export async function GET(
       ok: true,
       data: {
         status: adaptation.status,
+        voteScore: adaptation.voteScore,
+        voteCount: adaptation.voteCount,
         moderationReason: adaptation.moderationReason,
         message: getFamilyModerationMessage(adaptation.status, adaptation.moderationReason),
       },

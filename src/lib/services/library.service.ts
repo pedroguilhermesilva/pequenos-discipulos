@@ -1,4 +1,6 @@
 import { fromPrismaAgeTier, fromPrismaContentType } from '@/lib/domain/mappers';
+import { AdaptationNotFound, UnauthorizedError } from '@/lib/domain/errors';
+import { COMMUNITY_VISIBLE_STATUSES } from '@/lib/moderation/constants';
 import type { AdaptationRepository } from '@/lib/repositories/interfaces/adaptation.repository';
 import type {
   UserStoryRepository,
@@ -81,5 +83,33 @@ export class LibraryService {
     const stories = await this.userStories.listByUser(userId, childProfileId);
 
     return stories.map((story) => this.mapUserStory(story).summary);
+  }
+
+  /** Link a community adaptation to the active child library (preview → save/use). */
+  async adoptCommunityAdaptation(
+    userId: string,
+    adaptationId: string,
+    childProfileId?: string
+  ): Promise<{ userStoryId: string }> {
+    const adaptation = await this.adaptations.findById(adaptationId);
+    if (!adaptation) throw new AdaptationNotFound();
+
+    if (!COMMUNITY_VISIBLE_STATUSES.includes(adaptation.status)) {
+      throw new UnauthorizedError('Esta versão não está disponível na comunidade.');
+    }
+
+    const userStory = await this.userStories.upsertFromAdaptation({
+      userId,
+      childProfileId,
+      adaptationId,
+    });
+
+    const totalPages = Array.isArray((adaptation.content as { pages?: unknown[] })?.pages)
+      ? (adaptation.content as { pages: unknown[] }).pages.length
+      : 4;
+
+    await this.userStories.upsertProgress(userStory.id, 1, totalPages);
+
+    return { userStoryId: userStory.id };
   }
 }

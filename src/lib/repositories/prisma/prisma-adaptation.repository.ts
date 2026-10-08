@@ -23,8 +23,9 @@ export class PrismaAdaptationRepository implements AdaptationRepository {
         ageTier: key.ageTier,
         languageStyle: key.languageStyle,
         contentType: key.contentType,
+        status: { in: CACHEABLE_STATUSES },
       },
-      orderBy: [{ status: 'desc' }, { voteScore: 'desc' }, { version: 'desc' }],
+      orderBy: [{ voteScore: 'desc' }, { version: 'desc' }],
     });
   }
 
