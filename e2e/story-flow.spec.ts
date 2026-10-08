@@ -8,7 +8,8 @@ async function loginWithCredentials(page: Page) {
   await page.getByLabel('E-mail').fill(DEV_EMAIL);
   await page.getByLabel('Senha').fill(DEV_PASSWORD);
   await page.getByRole('button', { name: /^entrar$/i }).click();
-  await expect(page).toHaveURL(/\/(perfis|onboarding|home)/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/(perfis|home)/, { timeout: 15_000 });
+  await expect(page).not.toHaveURL(/\/onboarding/);
 
   if (page.url().includes('/perfis')) {
     await page.getByRole('button', { name: /^davi$/i }).click();
@@ -21,6 +22,16 @@ async function loginWithCredentials(page: Page) {
 test.describe('story generation flow', () => {
   test('login continues into the app', async ({ page }) => {
     await loginWithCredentials(page);
+  });
+
+  test('existing user does not land on onboarding after logout and re-login', async ({ page }) => {
+    await loginWithCredentials(page);
+
+    await page.getByRole('button', { name: /^sair$/i }).click();
+    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+
+    await loginWithCredentials(page);
+    await expect(page).not.toHaveURL(/\/onboarding/);
   });
 
   test('choose passage, generate and read story', async ({ page }) => {

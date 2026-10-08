@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
 import { Logo } from '@/components/ui/Logo';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
@@ -49,6 +49,7 @@ export function LoginPageContent() {
         return;
       }
 
+      await getSession();
       router.push(callbackUrl);
       router.refresh();
     } catch {
@@ -102,6 +103,7 @@ export function LoginPageContent() {
         return;
       }
 
+      await getSession();
       router.push('/onboarding/step-1');
       router.refresh();
     } catch {

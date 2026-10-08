@@ -77,7 +77,9 @@ CRUD de perfis de criança; limites por plano via `PlanLimitsService`.
 
 **Actions:** `src/lib/profiles/actions.ts` — `setActiveChildProfile`, `getActiveChildProfileIdAction`, `deleteChildProfileAction`, etc.
 
-**Perfil ativo:** cookie httpOnly `active_child_profile_id` (`getCurrentChildProfileId()`). Um único `ChildProfileProvider` envolve a app em `QueryProvider` (layout). Troca de filho: estado optimista imediato + `setActiveChildProfile` em background (1 query `ChildProfile.findById`, sessão JWT sem `User.findUnique`). Biblioteca/home: `getChildStoriesAction(activeProfile.id)` (1 query, filtrada por `userId`). Ver `src/lib/profiles/profile-switch-path.ts` e `scripts/profile-switch-benchmark.ts`.
+**Perfil ativo:** cookie httpOnly `active_child_profile_id` (`getCurrentChildProfileId()`). Um único `ChildProfileProvider` envolve a app em `QueryProvider` (layout). Recarrega a lista quando o utilizador autenticado muda (login/logout/troca de conta) via `useSession`; respostas `UNAUTHORIZED` não contam como “0 filhos”. Troca de filho: estado optimista imediato + `setActiveChildProfile` em background (1 query `ChildProfile.findById`, sessão JWT sem `User.findUnique`). Biblioteca/home: `getChildStoriesAction(activeProfile.id)` (1 query, filtrada por `userId`). Ver `src/lib/profiles/profile-switch-path.ts` e `scripts/profile-switch-benchmark.ts`.
+
+**Onboarding:** só contas com zero filhos no Postgres. Guarda de servidor em `src/lib/onboarding/guard.ts` (`ensureOnboardingAccess`) nas páginas `/onboarding/*`; redirecciona para `/home` se já existir filho e a URL não tiver `?modo=novo`. Cliente: `AppProfileGuard` + `profile-guard-logic.ts`.
 
 **Exclusão de perfil:** `delete(userId, profileId)` exige dono (`userId`) e pelo menos 2 perfis na conta. Prisma cascade apaga `UserStory`, `Collection`, `AdaptationView` ligados ao `childProfileId`. Se o perfil excluído era o ativo, o cookie passa ao perfil restante mais antigo.
 
