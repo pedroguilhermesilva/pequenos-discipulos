@@ -9,17 +9,21 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import type { UserPreferences } from '@/lib/onboarding/types';
 import {
   addProfile,
-  deleteProfile,
+  deleteProfile as deleteLocalProfile,
   getActiveProfile,
   loadProfilesState,
-  setActiveProfile as setActiveProfileStorage,
+  replaceProfilesState,
   updateProfile,
 } from '@/lib/profiles/storage';
 import {
   createChildProfileAction,
+  deleteChildProfileAction,
+  getActiveChildProfileIdAction,
   listChildProfilesAction,
   migrateLocalProfilesAction,
   setActiveChildProfile,
@@ -28,19 +32,23 @@ import { parsePreferences } from '@/lib/onboarding/storage';
 import { DEFAULT_PREFERENCES } from '@/lib/onboarding/defaults';
 import type { ChildProfile, ProfileAvatarColorId } from '@/lib/profiles/types';
 
+export type RemoveProfileResult =
+  | { ok: true; message: string }
+  | { ok: false; message: string };
+
 interface ChildProfileContextValue {
   profiles: ChildProfile[];
   activeProfile: ChildProfile | null;
   isReady: boolean;
   refresh: () => void;
-  selectProfile: (profileId: string) => ChildProfile | null;
+  selectProfile: (profileId: string) => Promise<ChildProfile | null>;
   createProfile: (preferences: UserPreferences) => ChildProfile;
   updateActivePreferences: (preferences: UserPreferences) => void;
   updateProfileById: (
     profileId: string,
     updates: Partial<Pick<ChildProfile, 'name' | 'avatarColor' | 'preferences' | 'hasCreatedStory'>>
   ) => void;
-  removeProfile: (profileId: string) => boolean;
+  removeProfile: (profileId: string) => Promise<RemoveProfileResult>;
 }
 
 const ChildProfileContext = createContext<ChildProfileContextValue | null>(null);
@@ -66,10 +74,31 @@ function mapDbProfile(row: {
   };
 }
 
+function resolveActiveProfile(
+  profiles: ChildProfile[],
+  activeProfileId: string | null
+): ChildProfile | null {
+  if (activeProfileId) {
+    return profiles.find((profile) => profile.id === activeProfileId) ?? profiles[0] ?? null;
+  }
+  return profiles[0] ?? null;
+}
+
 export function ChildProfileProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [profiles, setProfiles] = useState<ChildProfile[]>([]);
   const [activeProfile, setActiveProfile] = useState<ChildProfile | null>(null);
   const [isReady, setIsReady] = useState(false);
+
+  const syncProfiles = useCallback((mapped: ChildProfile[], activeProfileId: string | null) => {
+    const active = resolveActiveProfile(mapped, activeProfileId);
+    setProfiles(mapped);
+    setActiveProfile(active);
+    replaceProfilesState(mapped, active?.id ?? null);
+    setIsReady(true);
+    return active;
+  }, []);
 
   const refreshLocal = useCallback(() => {
     const state = loadProfilesState();
@@ -82,14 +111,13 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
     const result = await listChildProfilesAction();
     if (result.ok && result.data.length > 0) {
       const mapped = result.data.map(mapDbProfile);
-      setProfiles(mapped);
-      const activeId = getActiveProfile()?.id;
-      setActiveProfile(mapped.find((p) => p.id === activeId) ?? mapped[0] ?? null);
-      setIsReady(true);
+      const activeResult = await getActiveChildProfileIdAction();
+      const activeProfileId = activeResult.ok ? activeResult.data.profileId : null;
+      syncProfiles(mapped, activeProfileId);
       return;
     }
     refreshLocal();
-  }, [refreshLocal]);
+  }, [refreshLocal, syncProfiles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,13 +147,21 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const selectProfile = useCallback(
-    (profileId: string) => {
-      const profile = setActiveProfileStorage(profileId);
-      void setActiveChildProfile(profileId);
-      void refresh();
-      return profile;
+    async (profileId: string) => {
+      const active = syncProfiles(profiles, profileId);
+      if (!active) return null;
+
+      void setActiveChildProfile(profileId).then(async (result) => {
+        if (!result.ok) {
+          await refresh();
+          return;
+        }
+        void queryClient.invalidateQueries({ queryKey: ['library'] });
+      });
+
+      return active;
     },
-    [refresh]
+    [profiles, syncProfiles, refresh, queryClient]
   );
 
   const createProfile = useCallback(
@@ -139,13 +175,23 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
           preferences: localProfile.preferences,
         });
         if (result.ok) {
-          await setActiveChildProfile(result.data.id);
+          const setResult = await setActiveChildProfile(result.data.id);
+          if (setResult.ok) {
+            const listResult = await listChildProfilesAction();
+            if (listResult.ok) {
+              syncProfiles(
+                listResult.data.map(mapDbProfile),
+                setResult.data.profileId
+              );
+            }
+          }
         }
-        await refresh();
+        await queryClient.invalidateQueries({ queryKey: ['library'] });
+        router.refresh();
       })();
       return localProfile;
     },
-    [refresh]
+    [syncProfiles, queryClient, router]
   );
 
   const updateActivePreferences = useCallback(
@@ -170,12 +216,33 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
   );
 
   const removeProfile = useCallback(
-    (profileId: string) => {
-      const removed = deleteProfile(profileId);
-      if (removed) void refresh();
-      return removed;
+    async (profileId: string): Promise<RemoveProfileResult> => {
+      const deletedName =
+        profiles.find((profile) => profile.id === profileId)?.name ?? 'Perfil';
+
+      const result = await deleteChildProfileAction(profileId);
+      if (!result.ok) {
+        return { ok: false, message: result.message };
+      }
+
+      deleteLocalProfile(profileId);
+
+      const listResult = await listChildProfilesAction();
+      if (listResult.ok) {
+        syncProfiles(listResult.data.map(mapDbProfile), result.data.activeProfileId);
+      } else {
+        await refresh();
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['library'] });
+      router.refresh();
+
+      return {
+        ok: true,
+        message: `Perfil de ${deletedName} excluído com sucesso.`,
+      };
     },
-    [refresh]
+    [refresh, router, profiles, syncProfiles, queryClient]
   );
 
   const value = useMemo(

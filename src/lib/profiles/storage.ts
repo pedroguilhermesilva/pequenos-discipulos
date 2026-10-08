@@ -40,6 +40,15 @@ export function saveProfilesState(state: ProfilesState): void {
   localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(state));
 }
 
+/** Substitui o estado local com perfis vindos do servidor (cookie = perfil ativo). */
+export function replaceProfilesState(
+  profiles: ChildProfile[],
+  activeProfileId: string | null
+): void {
+  if (typeof window === 'undefined') return;
+  saveProfilesState({ profiles, activeProfileId });
+}
+
 export function migrateLegacyIfNeeded(): void {
   if (typeof window === 'undefined') return;
 
