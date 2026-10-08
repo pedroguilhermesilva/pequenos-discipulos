@@ -148,23 +148,20 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
 
   const selectProfile = useCallback(
     async (profileId: string) => {
-      const result = await setActiveChildProfile(profileId);
-      if (!result.ok) {
-        return null;
-      }
+      const active = syncProfiles(profiles, profileId);
+      if (!active) return null;
 
-      const listResult = await listChildProfilesAction();
-      if (!listResult.ok) return null;
-
-      const mapped = listResult.data.map(mapDbProfile);
-      const active = syncProfiles(mapped, result.data.profileId);
-
-      await queryClient.invalidateQueries({ queryKey: ['library'] });
-      router.refresh();
+      void setActiveChildProfile(profileId).then(async (result) => {
+        if (!result.ok) {
+          await refresh();
+          return;
+        }
+        void queryClient.invalidateQueries({ queryKey: ['library'] });
+      });
 
       return active;
     },
-    [syncProfiles, queryClient, router]
+    [profiles, syncProfiles, refresh, queryClient]
   );
 
   const createProfile = useCallback(

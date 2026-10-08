@@ -17,9 +17,9 @@ export async function setActiveChildProfile(
   profileId: string
 ): Promise<ActionResult<{ profileId: string }>> {
   try {
-    const user = await requireCurrentUser();
+    const userId = await getCurrentUserId();
     const profile = await container.services.childProfiles.findById(profileId);
-    if (!profile || profile.userId !== user.id) {
+    if (!profile || profile.userId !== userId) {
       return { ok: false, code: 'NOT_FOUND', message: 'Perfil não encontrado.' };
     }
 
@@ -30,12 +30,6 @@ export async function setActiveChildProfile(
       path: '/',
     });
 
-    revalidatePath('/');
-    revalidatePath('/home');
-    revalidatePath('/perfis');
-    revalidatePath('/configuracoes');
-    revalidatePath('/biblioteca');
-    revalidatePath('/nova-historia');
     return { ok: true, data: { profileId } };
   } catch (error) {
     return toActionError(error);

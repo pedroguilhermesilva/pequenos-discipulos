@@ -46,12 +46,13 @@ export function ProfilePicker({ redirectTo = '/home', showManageHint = true }: P
 
     try {
       const selected = await selectProfile(profileId);
-      if (selected) {
-        router.push(redirectTo);
+      if (!selected) {
+        setSelectError(PROFILE_SWITCH_ERROR);
+        setSelectingProfileId(null);
         return;
       }
-      setSelectError(PROFILE_SWITCH_ERROR);
-      setSelectingProfileId(null);
+
+      router.push(redirectTo);
     } catch {
       setSelectError(PROFILE_SWITCH_ERROR);
       setSelectingProfileId(null);

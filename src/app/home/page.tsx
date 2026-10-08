@@ -109,7 +109,7 @@ function HomePageContent() {
   const { activeProfile } = useChildProfiles();
   const preferences = activeProfile?.preferences ?? DEFAULT_PREFERENCES;
   const childProfile = profileFromPreferences(preferences);
-  const { data: stories = [] } = useQuery({
+  const { data: stories = [], isLoading: isLibraryLoading } = useQuery({
     queryKey: ['library', activeProfile?.id ?? 'none'],
     queryFn: () => getChildStoriesAction(activeProfile?.id),
     enabled: Boolean(activeProfile?.id),
@@ -253,6 +253,13 @@ function HomePageContent() {
               </div>
             </div>
           </section>
+        )}
+
+        {isLibraryLoading && stories.length === 0 && (
+          <p className="text-sm text-oliva flex items-center gap-2" aria-live="polite">
+            <span className="inline-block w-4 h-4 rounded-full border-2 border-laranja/30 border-t-laranja animate-spin" />
+            A carregar histórias de {childProfile.name}…
+          </p>
         )}
 
         {/* Story shelf */}

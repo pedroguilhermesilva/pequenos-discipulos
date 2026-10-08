@@ -2,6 +2,7 @@
 
 import {
   getCurrentChildProfileId,
+  getCurrentUserId,
   requireCurrentUser,
 } from '@/lib/auth/get-current-user';
 import { container } from '@/lib/container';
@@ -28,17 +29,10 @@ export async function getCollectionsAction() {
 }
 
 export async function getChildStoriesAction(childProfileId?: string): Promise<StorySummary[]> {
-  const user = await requireCurrentUser();
-  let childId = childProfileId ?? (await getCurrentChildProfileId()) ?? undefined;
+  const userId = await getCurrentUserId();
+  const childId = childProfileId ?? (await getCurrentChildProfileId()) ?? undefined;
 
-  if (childProfileId) {
-    const profile = await container.services.childProfiles.findById(childProfileId);
-    if (!profile || profile.userId !== user.id) {
-      childId = undefined;
-    }
-  }
-
-  const userStories = await container.services.library.listForUser(user.id, childId);
+  const userStories = await container.services.library.listForUser(userId, childId);
   if (userStories.length > 0) {
     return userStories;
   }
