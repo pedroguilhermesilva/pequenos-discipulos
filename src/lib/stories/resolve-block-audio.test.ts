@@ -10,6 +10,32 @@ describe('resolveBlockAudioInput', () => {
     });
   });
 
+  it('maps inline word parts with tagSom via sound-tag routing', () => {
+    expect(
+      resolveBlockAudioInput({
+        type: 'word',
+        value: 'vento',
+        tagSom: 'vento_tempestade_mar',
+        textoParaAudio: 'Fwoooosh!',
+      })
+    ).toMatchObject({
+      kind: 'sfx',
+      text: 'vento_tempestade_mar',
+    });
+
+    expect(
+      resolveBlockAudioInput({
+        type: 'word',
+        value: 'Coragem',
+        tagSom: 'fala_jesus_coragem',
+        textoParaAudio: 'Coragem! Sou eu.',
+      })
+    ).toEqual({
+      kind: 'speech',
+      text: 'Coragem! Sou eu.',
+    });
+  });
+
   it('passes explicit sfxPrompt for word parts', () => {
     expect(
       resolveBlockAudioInput({

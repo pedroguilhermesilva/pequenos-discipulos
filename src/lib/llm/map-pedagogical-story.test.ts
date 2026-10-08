@@ -1,36 +1,59 @@
 import { describe, expect, it } from 'vitest';
 import { mapPedagogicalStoryToContent } from '@/lib/llm/map-pedagogical-story';
-import { buildSamplePedagogicalStory } from '@/lib/llm/test-fixtures';
+import { buildLegacyPedagogicalStory, buildSamplePedagogicalStory } from '@/lib/llm/test-fixtures';
 
 describe('mapPedagogicalStoryToContent', () => {
-  it('keeps interleaved blocks in reading order on the same page', () => {
+  it('embeds interactive words inline within text paragraphs', () => {
     const response = buildSamplePedagogicalStory({
       conteudo_estruturado: [
-        { tipo: 'texto', conteudo: 'Trecho 1.' },
         {
-          tipo: 'interativo',
-          rotulo: 'Ouvir a tempestade',
-          texto_para_audio: 'Fwoooosh!',
-          tag_som: 'vento_tempestade_mar',
+          tipo: 'texto',
+          conteudo: 'Os amigos estavam no barco. O vento soprava forte.',
+          marcadores_interativos: [
+            {
+              palavra: 'vento',
+              texto_para_audio: 'Fwoooosh!',
+              tag_som: 'vento_tempestade_mar',
+            },
+          ],
         },
-        { tipo: 'texto', conteudo: 'Trecho 2.' },
         {
-          tipo: 'interativo',
-          rotulo: 'Ouvir Jesus',
-          texto_para_audio: 'Coragem!',
-          tag_som: 'fala_jesus_coragem',
+          tipo: 'texto',
+          conteudo: 'Jesus disse: Coragem!',
+          marcadores_interativos: [
+            {
+              palavra: 'Coragem',
+              texto_para_audio: 'Coragem!',
+              tag_som: 'fala_jesus_coragem',
+            },
+          ],
         },
       ],
     });
 
     const content = mapPedagogicalStoryToContent(response);
+    const firstParagraph = content.pages[0]?.paragraphs[0] ?? [];
 
-    expect(content.pages).toHaveLength(1);
+    expect(firstParagraph.map((part) => part.type)).toEqual(['text', 'word', 'text']);
+    expect(firstParagraph[1]).toMatchObject({
+      type: 'word',
+      value: 'vento',
+      tagSom: 'vento_tempestade_mar',
+    });
+    expect(content.pages[0]?.paragraphs[1]?.[1]).toMatchObject({
+      type: 'word',
+      value: 'Coragem',
+      tagSom: 'fala_jesus_coragem',
+    });
+  });
+
+  it('maps legacy interativo blocks for backward compatibility', () => {
+    const content = mapPedagogicalStoryToContent(buildLegacyPedagogicalStory());
+
     expect(content.pages[0]?.paragraphs[0]?.map((part) => part.type)).toEqual([
       'text',
       'interactive',
       'text',
-      'interactive',
     ]);
   });
 });

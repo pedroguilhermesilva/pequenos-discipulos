@@ -28,11 +28,25 @@ export const pedagogicalMetadataSchema = z.object({
   ),
 });
 
+export const pedagogicalInteractiveMarkerSchema = z.object({
+  palavra: z.string().min(1),
+  texto_para_audio: z.string().min(1),
+  tag_som: z.preprocess(
+    normalizeTagSom,
+    z
+      .string()
+      .min(1)
+      .regex(/^[a-z0-9_]+$/, 'tag_som deve ser minúscula, sem acentos, com underscores')
+  ),
+});
+
 export const pedagogicalTextBlockSchema = z.object({
   tipo: z.literal('texto'),
   conteudo: z.string().min(1),
+  marcadores_interativos: z.array(pedagogicalInteractiveMarkerSchema).default([]),
 });
 
+/** Formato legado — blocos interativos separados (histórias antigas / respostas do modelo desatualizadas). */
 export const pedagogicalInteractiveBlockSchema = z.object({
   tipo: z.literal('interativo'),
   rotulo: z.string().min(1),
@@ -57,4 +71,5 @@ export const pedagogicalStoryResponseSchema = z.object({
   quiz: storyQuizSchema,
 });
 
+export type PedagogicalInteractiveMarker = z.infer<typeof pedagogicalInteractiveMarkerSchema>;
 export type PedagogicalStoryResponse = z.infer<typeof pedagogicalStoryResponseSchema>;

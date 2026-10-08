@@ -18,6 +18,8 @@ export const storyTextPartSchema = z.discriminatedUnion('type', [
     value: z.string(),
     variant: z.enum(['default', 'vida']).optional(),
     ariaLabel: z.string().optional(),
+    tagSom: z.string().optional(),
+    textoParaAudio: z.string().optional(),
     sfxPrompt: z.string().optional(),
     audioPath: z.string().optional(),
   }),

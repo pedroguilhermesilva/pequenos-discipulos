@@ -1,63 +1,53 @@
 import { describe, expect, it } from 'vitest';
 import { LlmValidationError } from '@/lib/domain/errors';
-import { assertPedagogicalStructure } from '@/lib/llm/validate-pedagogical-story';
-import { buildSamplePedagogicalStory } from '@/lib/llm/test-fixtures';
-
-const validStory = buildSamplePedagogicalStory({
-  conteudo_estruturado: [
-    { tipo: 'texto', conteudo: 'Os amigos de Jesus estavam em um barco.' },
-    {
-      tipo: 'interativo',
-      rotulo: 'Ouvir a tempestade',
-      texto_para_audio: 'Fwoooosh!',
-      tag_som: 'vento_tempestade_mar',
-    },
-    { tipo: 'texto', conteudo: 'Jesus disse para não terem medo.' },
-  ],
-});
+import {
+  assertPedagogicalStructure,
+  isLegacyPedagogicalFormat,
+} from '@/lib/llm/validate-pedagogical-story';
+import { buildLegacyPedagogicalStory, buildSamplePedagogicalStory } from '@/lib/llm/test-fixtures';
 
 describe('assertPedagogicalStructure', () => {
-  it('accepts alternating texto and interativo blocks', () => {
-    expect(() => assertPedagogicalStructure(validStory)).not.toThrow();
+  it('accepts inline marker text blocks', () => {
+    expect(() => assertPedagogicalStructure(buildSamplePedagogicalStory())).not.toThrow();
   });
 
-  it('rejects a single long texto block with one interativo at the end', () => {
+  it('rejects stories with no text blocks', () => {
     expect(() =>
       assertPedagogicalStructure({
-        ...validStory,
+        ...buildSamplePedagogicalStory(),
         conteudo_estruturado: [
-          {
-            tipo: 'texto',
-            conteudo:
-              'Papai do Céu falou com Jonas. Jonas fugiu. O mar ficou bravo. A tempestade gritou. Jonas dentro do peixe ficou. Três dias e noites ele lá ficou.',
-          },
-          {
-            tipo: 'interativo',
-            rotulo: 'Ouça a tempestade',
-            texto_para_audio: 'Uhul!',
-            tag_som: 'tempestade_mar',
-          },
-        ],
-      })
-    ).toThrow(LlmValidationError);
-  });
-
-  it('rejects two blocks of the same type in a row', () => {
-    expect(() =>
-      assertPedagogicalStructure({
-        ...validStory,
-        conteudo_estruturado: [
-          { tipo: 'texto', conteudo: 'Primeiro trecho.' },
-          { tipo: 'texto', conteudo: 'Segundo trecho sem áudio no meio.' },
           {
             tipo: 'interativo',
             rotulo: 'Ouvir',
             texto_para_audio: 'Som',
-            tag_som: 'som_teste',
+            tag_som: 'vento_tempestade_mar',
           },
-          { tipo: 'texto', conteudo: 'Final.' },
         ],
       })
     ).toThrow(LlmValidationError);
+  });
+
+  it('rejects a single text block that is too long for the age tier', () => {
+    expect(() =>
+      assertPedagogicalStructure({
+        ...buildSamplePedagogicalStory(),
+        metadata: { livro: 'Jonas', capitulo: 1, versiculo: '1-3', idade_alvo: 5 },
+        conteudo_estruturado: [
+          {
+            tipo: 'texto',
+            conteudo:
+              'Papai do Céu falou com Jonas. Jonas fugiu para longe. O mar ficou bravo. A tempestade gritou muito alto. Jonas caiu na água fria. Um peixe grande o engoliu. Três dias e três noites ele ficou dentro. Depois ele saiu e foi obediente a Deus. Jonas contou a todos sobre o amor de Deus.',
+            marcadores_interativos: [],
+          },
+        ],
+      })
+    ).toThrow(LlmValidationError);
+  });
+});
+
+describe('isLegacyPedagogicalFormat', () => {
+  it('detects legacy interativo blocks', () => {
+    expect(isLegacyPedagogicalFormat(buildLegacyPedagogicalStory().conteudo_estruturado)).toBe(true);
+    expect(isLegacyPedagogicalFormat(buildSamplePedagogicalStory().conteudo_estruturado)).toBe(false);
   });
 });

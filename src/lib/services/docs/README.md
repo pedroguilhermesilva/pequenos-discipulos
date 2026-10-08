@@ -30,6 +30,8 @@ Gera ou reutiliza adaptações de passagens bíblicas.
 
 **API:** `POST /api/stories/generate` (autenticada).
 
+**Formato LLM (inline interativo):** blocos `texto` com `marcadores_interativos` (`palavra`, `texto_para_audio`, `tag_som`). O mapper (`map-pedagogical-story.ts`) converte cada marcador numa parte `word` inline; marcadores inválidos são descartados (palavra ausente, tag desconhecida, >2 por página). Histórias legadas com blocos `interativo` separados continuam a mapear para `type: interactive` (compatibilidade). Tags de som centralizadas em `src/lib/stories/sound-tag.ts` (`KNOWN_SOUND_TAGS`).
+
 ## StoryCacheService
 
 Seleção de adaptações já existentes por `voteScore`, excluindo as do próprio utilizador e as já vistas. A chave de cache normaliza `bibleVersionId` (`alm1911`) e a pesquisa inclui aliases legados (ex.: `3254`).

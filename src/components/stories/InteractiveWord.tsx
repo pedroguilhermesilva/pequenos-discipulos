@@ -12,6 +12,8 @@ interface InteractiveWordProps {
   audioDescription?: string;
   audioPath?: string;
   sfxPrompt?: string;
+  tagSom?: string;
+  ariaLabel?: string;
   onPlay: (request: StoryAudioPlayRequest) => void;
   className?: string;
 }
@@ -25,9 +27,13 @@ export function InteractiveWord({
   audioDescription = 'Efeito sonoro',
   audioPath,
   sfxPrompt,
+  tagSom,
+  ariaLabel,
   onPlay,
   className,
 }: InteractiveWordProps) {
+  const label = ariaLabel ?? `Ouvir: ${audioTitle}`;
+
   return (
     <button
       type="button"
@@ -40,13 +46,14 @@ export function InteractiveWord({
           description: audioDescription,
           audioPath,
           sfxPrompt,
+          tagSom,
         })
       }
       className={cn(
         variant === 'vida' ? 'palavra-interativa-vida' : 'palavra-interativa',
         className
       )}
-      aria-label={`Ouvir: ${audioTitle}`}
+      aria-label={label}
     >
       <span>{children}</span>
       <span className="material-symbols-outlined text-lg animate-shimmer">volume_up</span>

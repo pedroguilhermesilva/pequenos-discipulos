@@ -75,9 +75,14 @@ describe('ChatCompletionsLlmProvider — structured outputs, retry and friendly 
   const goodStory = {
     metadata: { livro: 'Mateus', capitulo: 14, versiculo: '24-27', idade_alvo: 4 },
     conteudo_estruturado: [
-      { tipo: 'texto', conteudo: 'Os amigos estavam no barco.' },
-      { tipo: 'interativo', rotulo: 'Ouvir o vento', texto_para_audio: 'Fuuuu!', tag_som: 'vento_mar' },
-      { tipo: 'texto', conteudo: 'Jesus acalmou o mar.' },
+      {
+        tipo: 'texto',
+        conteudo: 'Os amigos estavam no barco. O vento soprava.',
+        marcadores_interativos: [
+          { palavra: 'vento', texto_para_audio: 'Fuuuu!', tag_som: 'vento_tempestade_mar' },
+        ],
+      },
+      { tipo: 'texto', conteudo: 'Jesus acalmou o mar.', marcadores_interativos: [] },
     ],
     quiz: {
       title: 'Vamos relembrar?',
@@ -105,9 +110,8 @@ describe('ChatCompletionsLlmProvider — structured outputs, retry and friendly 
   const badStory = {
     ...goodStory,
     conteudo_estruturado: [
-      { tipo: 'texto', conteudo: 'SEGREDO_DA_HISTORIA texto longo da história.' },
-      { tipo: 'interativo', texto: 'sem campos' },
-      { tipo: 'texto', conteudo: 'Fim.' },
+      { tipo: 'texto', conteudo: 'SEGREDO_DA_HISTORIA texto longo da história.', marcadores_interativos: [] },
+      { tipo: 'texto', conteudo: 'Fim.', marcadores_interativos: 'invalid' },
     ],
     quiz: {},
   };
@@ -158,7 +162,7 @@ describe('ChatCompletionsLlmProvider — structured outputs, retry and friendly 
     const body = bodyOf(fetchMock.mock.calls[0]);
     expect(body.response_format).toEqual({ type: 'json_object' });
     const system = body.messages.find((m) => m.role === 'system')!.content;
-    for (const field of ['rotulo', 'texto_para_audio', 'tag_som', 'celebrationTitle', 'celebrationMessage', 'questions', 'correctOptionId']) {
+    for (const field of ['marcadores_interativos', 'palavra', 'texto_para_audio', 'tag_som', 'celebrationTitle', 'celebrationMessage', 'questions', 'correctOptionId']) {
       expect(system).toContain(field);
     }
   });
@@ -205,7 +209,7 @@ describe('ChatCompletionsLlmProvider — structured outputs, retry and friendly 
     expect(error).toBeInstanceOf(LlmValidationError);
     expect((error as Error).message).toBe(FRIENDLY_GENERATION_ERROR);
     const logged = errorSpy.mock.calls.map((c) => c.map(String).join(' ')).join('\n');
-    expect(logged).toMatch(/conteudo_estruturado|rotulo/);
+    expect(logged).toMatch(/conteudo_estruturado|marcadores_interativos/);
     expect(logged).toContain('gpt-4o-mini');
     expect(logged).not.toContain('SEGREDO_DA_HISTORIA');
     expect(logged).not.toContain('sk-test');
