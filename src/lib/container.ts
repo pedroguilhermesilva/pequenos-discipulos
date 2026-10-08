@@ -14,7 +14,13 @@ import { PrismaCollectionRepository } from '@/lib/repositories/prisma/prisma-col
 import { PrismaUsageRepository } from '@/lib/repositories/prisma/prisma-usage.repository';
 import { PrismaUserStoryRepository } from '@/lib/repositories/prisma/prisma-user-story.repository';
 import { PrismaVoteRepository } from '@/lib/repositories/prisma/prisma-vote.repository';
+import { PrismaModerationRepository } from '@/lib/repositories/prisma/prisma-moderation.repository';
+import { OpenAiModerationProvider } from '@/lib/providers/openai/openai-moderation.provider';
+import { ChatCompletionsStoryReviewProvider } from '@/lib/providers/llm/story-review.provider';
+import { StubContentModerationProvider } from '@/lib/providers/stubs/stub-content-moderation.provider';
+import { StubStoryReviewProvider } from '@/lib/providers/stubs/stub-story-review.provider';
 import { ChildProfileService } from '@/lib/services/child-profile.service';
+import { ModerationService } from '@/lib/services/moderation.service';
 import { FavoritesService } from '@/lib/services/favorites.service';
 import { LibraryService } from '@/lib/services/library.service';
 import { PlanLimitsService } from '@/lib/services/plan-limits.service';
@@ -32,11 +38,24 @@ const userStoryRepo = new PrismaUserStoryRepository(prisma);
 const collectionRepo = new PrismaCollectionRepository(prisma);
 const usageRepo = new PrismaUsageRepository(prisma);
 const voteRepo = new PrismaVoteRepository(prisma);
+const moderationRepo = new PrismaModerationRepository(prisma);
 
 const llmKey = process.env.LLM_API_KEY?.trim() ?? '';
 const llmBaseUrl = process.env.LLM_BASE_URL?.trim() || 'https://api.openai.com/v1';
 const llmModel = process.env.LLM_MODEL?.trim() || 'gpt-4o-mini';
 const useLlmStub = process.env.LLM_USE_STUB === 'true' || !llmKey;
+
+const contentModerationProvider = useLlmStub
+  ? new StubContentModerationProvider()
+  : new OpenAiModerationProvider({ apiKey: llmKey, baseUrl: llmBaseUrl });
+
+const storyReviewProvider = useLlmStub
+  ? new StubStoryReviewProvider()
+  : new ChatCompletionsStoryReviewProvider({
+      apiKey: llmKey,
+      baseUrl: llmBaseUrl,
+      model: llmModel,
+    });
 
 const llmProvider = useLlmStub
   ? new StubLlmProvider()
@@ -81,6 +100,12 @@ const audioService = new AudioService(
   googleTtsRuntimeConfig.cacheSuffix
 );
 const storyCacheService = new StoryCacheService(prisma);
+const moderationService = new ModerationService(
+  adaptationRepo,
+  moderationRepo,
+  contentModerationProvider,
+  storyReviewProvider
+);
 
 export const container = {
   prisma,
@@ -91,9 +116,12 @@ export const container = {
     collections: collectionRepo,
     usage: usageRepo,
     votes: voteRepo,
+    moderation: moderationRepo,
   },
   providers: {
     llm: llmProvider,
+    contentModeration: contentModerationProvider,
+    storyReview: storyReviewProvider,
     tts: ttsProvider,
     sfx: sfxProvider,
     storage: storageProvider,
@@ -116,7 +144,8 @@ export const container = {
     favorites: new FavoritesService(userStoryRepo),
     childProfiles: new ChildProfileService(childProfileRepo, planLimitsService),
     quiz: new QuizService(adaptationRepo),
-    votes: new VoteService(voteRepo, adaptationRepo, userStoryRepo),
+    moderation: moderationService,
+    votes: new VoteService(voteRepo, adaptationRepo, userStoryRepo, moderationService),
     audio: audioService,
     storageAccess: storageAccessService,
     userData: new UserDataService(prisma, storageProvider),

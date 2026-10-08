@@ -131,11 +131,12 @@ describe('StoryGenerationService cache-first behavior', () => {
     expect(llmPayload).not.toHaveProperty('childProfileId');
   });
 
-  it('serves another user draft from cache before calling the LLM', async () => {
+  it('serves another user approved community version from cache before calling the LLM', async () => {
     vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue({
       id: 'adaptation-from-user-b',
-      title: 'Versão do utilizador B',
+      title: 'Versão aprovada do utilizador B',
       content: sampleContent,
+      status: 'community',
     } as never);
 
     const result = await buildService().generateOrReuse({
@@ -149,6 +150,18 @@ describe('StoryGenerationService cache-first behavior', () => {
     expect(storyCache.pickHighestScoredUnseenCachedAdaptation).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-a' })
     );
+  });
+
+  it('does not reuse draft when cache finds no approved version', async () => {
+    vi.mocked(storyCache.pickHighestScoredUnseenCachedAdaptation).mockResolvedValue(null);
+
+    await buildService().generateOrReuse({
+      userId: 'user-a',
+      tier: 'free',
+      payload,
+    });
+
+    expect(llm.generateStory).toHaveBeenCalled();
   });
 
   it('returns the same result for duplicate requests with the same idempotency key', async () => {

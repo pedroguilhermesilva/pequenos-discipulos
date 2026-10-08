@@ -17,7 +17,7 @@ Gera ou reutiliza adaptações de passagens bíblicas.
 
 **Fluxo:**
 
-1. Até 3 visualizações cache de adaptações de **outros** utilizadores (mesma chave de passagem/idade/estilo), servidas pela **maior `voteScore`** (empate → aleatório). **Status `draft` entra no cache** — não há filtro de moderação nesta fase.
+1. Até 3 visualizações cache de adaptações de **outros** utilizadores (mesma chave de passagem/idade/estilo), servidas pela **maior `voteScore`** (empate → aleatório). **Só entram versões com status `community` ou `as_default`** — rascunhos, recusadas e em revisão nunca entram no cache.
 2. Se esgotado, gera via LLM com **apenas a referência bíblica** (sem texto integral no repo).
 3. Regista `AdaptationView` para tracking.
 4. **`idempotencyKey` (opcional):** evita geração duplicada quando o cliente reenvia o mesmo pedido (StrictMode, redirect, etc.). Persistido em `StoryGenerationIdempotency` (TTL ~5 min).
@@ -99,7 +99,27 @@ Versão actual dos termos: `CURRENT_CONSENT_VERSION` em `src/lib/privacy/constan
 Votos e aprovação familiar — **sempre** atrás de parent gate validado no servidor (`/api/votes`).
 
 - **Voto:** permitido em adaptações comunitárias de outros utilizadores; um voto por utilizador/adaptação (`AdaptationVote` unique).
-- **Aprovar/partilhar:** apenas adaptações da família (criadas pelo utilizador ou ligadas via `UserStory`).
+- **Aprovar em família:** apenas adaptações da família (criadas pelo utilizador ou ligadas via `UserStory`).
+- **Compartilhar com a comunidade:** delega a `ModerationService.submitForCommunityReview` — não publica directo.
+
+## ModerationService
+
+Revisão antes de uma versão entrar na comunidade (issue #12).
+
+**Estados:** `draft` → `pending_review` → (`community` | `rejected` | `pending_manual_review`).
+
+**Checagem automática (1 chamada LLM + moderação OpenAI por partilha):**
+
+1. Moderação de conteúdo (`OpenAiModerationProvider`, mesma `LLM_API_KEY`).
+2. Revisão LLM de fidelidade bíblica + adequação à idade (`ChatCompletionsStoryReviewProvider`).
+
+**Denúncias:** `POST /api/reports` — após `COMMUNITY_REPORT_THRESHOLD` (default 3), status `withdrawn`.
+
+**Admin:** `/admin/moderacao` + `GET/POST /api/admin/moderation/*` — requer email em `ADMIN_EMAILS`.
+
+**Auditoria:** `ModerationAuditLog` regista quem/o quê aprovou, recusou ou retirou, quando e porquê.
+
+**Regras por idade:** `src/lib/llm/age-tier-rules.ts` aplicadas em **toda** geração (`story-generation.prompt.ts`).
 
 ## Variáveis de ambiente relevantes
 
@@ -108,7 +128,8 @@ Votos e aprovação familiar — **sempre** atrás de parent gate validado no se
 | `DATABASE_URL` / `DIRECT_URL` | Postgres (Neon) |
 | `AUTH_SECRET` / `AUTH_URL` | NextAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth opcional |
-| `LLM_*` | Geração de histórias |
+| `LLM_*` | Geração de histórias + revisão automática na partilha |
+| `ADMIN_EMAILS` | Emails (vírgula) com acesso a `/admin/moderacao` |
 | `GOOGLE_TTS_*` / `TTS_USE_STUB` | Narração TTS (Google) |
 | `NARRATION_ALIGNER` / `GROQ_API_KEY` | Alinhamento palavra a palavra pós-Gemini |
 | `ELEVENLABS_*` | SFX (ElevenLabs, até #5) |

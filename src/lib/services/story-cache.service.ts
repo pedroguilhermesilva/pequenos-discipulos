@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { PassageAdaptation, PrismaClient } from '@prisma/client';
+import { CACHEABLE_STATUSES } from '@/lib/moderation/constants';
 import type { AdaptationLookupKey } from '@/lib/repositories/interfaces/adaptation.repository';
 import {
   getBibleVersionIdVariants,
@@ -113,6 +114,7 @@ export class StoryCacheService {
         ageTier: params.lookupKey.ageTier,
         languageStyle: params.lookupKey.languageStyle,
         contentType: params.lookupKey.contentType,
+        status: { in: CACHEABLE_STATUSES },
         AND: [
           {
             OR: [

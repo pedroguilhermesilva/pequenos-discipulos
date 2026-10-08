@@ -17,13 +17,21 @@ describe('VoteService', () => {
   const userStories = {
     findByUserAndAdaptation: vi.fn(),
   };
+  const moderation = {
+    submitForCommunityReview: vi.fn(),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   function buildService() {
-    return new VoteService(votes as never, adaptations as never, userStories as never);
+    return new VoteService(
+      votes as never,
+      adaptations as never,
+      userStories as never,
+      moderation as never
+    );
   }
 
   describe('approveWithFamily / shareWithCommunity (IDOR)', () => {
@@ -75,6 +83,24 @@ describe('VoteService', () => {
       await expect(buildService().shareWithCommunity('user-a', 'adapt-1')).rejects.toBeInstanceOf(
         UnauthorizedError
       );
+      expect(moderation.submitForCommunityReview).not.toHaveBeenCalled();
+    });
+
+    it('delegates shareWithCommunity to moderation review', async () => {
+      vi.mocked(adaptations.findById).mockResolvedValue({
+        id: 'adapt-1',
+        createdByUserId: 'user-a',
+      } as never);
+      vi.mocked(moderation.submitForCommunityReview).mockResolvedValue({
+        status: 'community',
+        reason: null,
+        verdict: 'approved',
+      });
+
+      const result = await buildService().shareWithCommunity('user-a', 'adapt-1');
+
+      expect(moderation.submitForCommunityReview).toHaveBeenCalledWith('adapt-1', 'user-a');
+      expect(result.status).toBe('community');
     });
   });
 

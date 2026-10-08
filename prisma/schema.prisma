@@ -29,8 +29,28 @@ enum ContentType {
 enum AdaptationStatus {
   draft
   family_approved
+  pending_review
+  pending_manual_review
   community
+  rejected
+  withdrawn
   as_default
+}
+
+enum ModerationAuditAction {
+  auto_approved
+  auto_rejected
+  auto_manual_review
+  admin_approved
+  admin_rejected
+  admin_withdrawn
+  report_withdrawn
+}
+
+enum ModerationActorType {
+  system
+  admin
+  user
 }
 
 model User {
@@ -61,6 +81,8 @@ model User {
   createdAdaptations PassageAdaptation[] @relation("AdaptationCreator")
   adaptationViews  AdaptationView[]
   storyGenerationIdempotencies StoryGenerationIdempotency[]
+  adaptationReports AdaptationReport[]
+  moderationAuditLogs ModerationAuditLog[]
 }
 
 model StoryGenerationIdempotency {
@@ -167,6 +189,10 @@ model PassageAdaptation {
   title           String
   imageUrl        String?
   createdByUserId String?
+  /// Friendly reason shown to the family when rejected or withdrawn.
+  moderationReason String?
+  moderatedAt    DateTime?
+  reportCount      Int              @default(0)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -176,6 +202,8 @@ model PassageAdaptation {
   audioAssets   AudioAsset[]
   votes         AdaptationVote[]
   views         AdaptationView[]
+  reports       AdaptationReport[]
+  moderationAuditLogs ModerationAuditLog[]
 
   @@unique([passageId, bibleVersionId, verseFrom, verseTo, ageTier, languageStyle, contentType, version])
   @@index([passageId, ageTier, contentType, status])
@@ -270,6 +298,35 @@ model AdaptationVote {
   adaptation PassageAdaptation @relation(fields: [adaptationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, adaptationId])
+}
+
+model AdaptationReport {
+  id           String   @id @default(cuid())
+  userId       String
+  adaptationId String
+  createdAt    DateTime @default(now())
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adaptation PassageAdaptation @relation(fields: [adaptationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, adaptationId])
+  @@index([adaptationId])
+}
+
+model ModerationAuditLog {
+  id           String                @id @default(cuid())
+  adaptationId String
+  action       ModerationAuditAction
+  actorType    ModerationActorType
+  actorId      String?
+  reason       String?
+  createdAt    DateTime              @default(now())
+
+  adaptation PassageAdaptation @relation(fields: [adaptationId], references: [id], onDelete: Cascade)
+  actor      User?             @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([adaptationId])
+  @@index([createdAt])
 }
 
 model AudioAsset {

@@ -6,7 +6,11 @@ export const languageStyleSchema = z.enum(['simple', 'rhymes', 'adventure']);
 export const adaptationStatusSchema = z.enum([
   'draft',
   'family_approved',
+  'pending_review',
+  'pending_manual_review',
   'community',
+  'rejected',
+  'withdrawn',
   'as_default',
 ]);
 

@@ -62,8 +62,10 @@ export function StoryViewerContent({
   const [currentPage, setCurrentPage] = useState(story.currentPage ?? 1);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [parentModalOpen, setParentModalOpen] = useState(false);
-  const [parentAction, setParentAction] = useState<'vote' | 'parents' | 'approve' | null>(null);
+  const [parentAction, setParentAction] = useState<'vote' | 'share' | 'approve' | null>(null);
   const [saved, setSaved] = useState(false);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [rating, setRating] = useState(4.9);
   const [audioToast, setAudioToast] = useState({
     visible: false,
@@ -247,10 +249,23 @@ export function StoryViewerContent({
     setAudioToast((prev) => ({ ...prev, visible: false }));
   }, []);
 
-  const openParentGate = (action: 'vote' | 'parents' | 'approve') => {
+  const openParentGate = (action: 'vote' | 'share' | 'approve') => {
     setParentAction(action);
     setParentModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!adaptationId) return;
+    void fetch(`/api/adaptations/${adaptationId}/status`)
+      .then((response) => response.json())
+      .then((json: { ok: boolean; data?: { status: string; message?: string | null } }) => {
+        if (json.ok && json.data) {
+          setShareStatus(json.data.status);
+          if (json.data.message) setShareMessage(json.data.message);
+        }
+      })
+      .catch(() => undefined);
+  }, [adaptationId]);
 
   const handleParentSuccess = async () => {
     if (!adaptationId || !parentAction) {
@@ -261,7 +276,7 @@ export function StoryViewerContent({
     const action =
       parentAction === 'approve'
         ? 'family_approve'
-        : parentAction === 'parents'
+        : parentAction === 'share'
           ? 'share_community'
           : 'vote';
 
@@ -277,16 +292,36 @@ export function StoryViewerContent({
       });
       const json = (await response.json()) as {
         ok: boolean;
-        data?: { voteScore?: number };
+        data?: { voteScore?: number; status?: string; reason?: string | null };
+        message?: string;
       };
       if (json.ok && json.data?.voteScore) {
         setRating(json.data.voteScore);
       }
-      if (action === 'family_approve' || action === 'share_community') {
+      if (action === 'family_approve') {
         setSaved(true);
       }
+      if (action === 'share_community' && json.ok && json.data) {
+        setShareStatus(json.data.status ?? null);
+        if (json.data.status === 'community') {
+          setShareMessage('Parabéns! Sua versão foi aprovada e já está na comunidade.');
+        } else if (json.data.status === 'rejected') {
+          setShareMessage(
+            json.data.reason ??
+              'Essa versão não pôde entrar na comunidade. Tente adaptar de outro jeito.'
+          );
+        } else if (json.data.status === 'pending_manual_review') {
+          setShareMessage('Sua versão está em revisão manual. Avisaremos quando houver decisão.');
+        } else {
+          setShareMessage('Sua versão está em revisão. Em breve você saberá o resultado.');
+        }
+      } else if (action === 'share_community' && !json.ok) {
+        setShareMessage(json.message ?? 'Não foi possível enviar para a comunidade.');
+      }
     } catch {
-      // keep UI quiet; parent gate already succeeded
+      if (parentAction === 'share') {
+        setShareMessage('Falha de rede ao compartilhar.');
+      }
     }
 
     setParentAction(null);
@@ -457,11 +492,16 @@ export function StoryViewerContent({
                 )}
                 <button
                   type="button"
-                  onClick={() => openParentGate('parents')}
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-oliva bg-pergaminho-escuro hover:bg-pergaminho-escuro/80 px-3 py-2.5 rounded-xl transition"
+                  onClick={() => openParentGate('share')}
+                  disabled={shareStatus === 'community' || shareStatus === 'pending_review'}
+                  className="flex shrink-0 items-center gap-1.5 text-xs font-bold text-ceu bg-ceu-claro hover:bg-ceu-claro/80 border border-ceu/20 px-3 py-2.5 rounded-xl transition disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-base">lock</span>
-                  Área dos Pais
+                  <span className="material-symbols-outlined text-base">groups</span>
+                  {shareStatus === 'community'
+                    ? 'Na comunidade'
+                    : shareStatus === 'pending_review' || shareStatus === 'pending_manual_review'
+                      ? 'Em revisão'
+                      : 'Compartilhar com a comunidade'}
                 </button>
                 <button
                   type="button"
@@ -473,6 +513,11 @@ export function StoryViewerContent({
                 </button>
               </div>
             </div>
+            {shareMessage ? (
+              <p className="px-5 pb-4 text-xs text-oliva bg-pergaminho-escuro/40 border-t border-borda">
+                {shareMessage}
+              </p>
+            ) : null}
           </div>
 
           {/* Page navigation footer */}

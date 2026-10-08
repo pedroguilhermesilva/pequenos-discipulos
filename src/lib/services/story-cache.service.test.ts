@@ -81,6 +81,7 @@ describe('StoryCacheService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           bibleVersionId: { in: expect.arrayContaining(['alm1911', '3254']) },
+          status: { in: ['community', 'as_default'] },
         }),
       })
     );
@@ -117,6 +118,7 @@ describe('StoryCacheService', () => {
     expect(prisma.passageAdaptation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
+          status: { in: ['community', 'as_default'] },
           AND: expect.arrayContaining([
             expect.objectContaining({
               OR: expect.arrayContaining([
