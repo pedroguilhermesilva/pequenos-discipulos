@@ -5,6 +5,7 @@ vi.mock('sonner', () => ({
     error: vi.fn(),
     success: vi.fn(),
     info: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -40,16 +41,22 @@ describe('notify', () => {
     expect(toast.error).toHaveBeenCalledWith(GENERIC_ERROR_MESSAGE, expect.any(Object));
   });
 
-  it('shows success and info toasts', () => {
+  it('shows success, info and warning toasts', () => {
     notify.success('Perfil atualizado com sucesso.');
     expect(toast.success).toHaveBeenCalledWith(
       'Perfil atualizado com sucesso.',
-      expect.objectContaining({ duration: 5000 })
+      expect.objectContaining({ duration: 5000, classNames: expect.any(Object) })
     );
 
     notify.info('Enviada para revisão.');
     expect(toast.info).toHaveBeenCalledWith(
       'Enviada para revisão.',
+      expect.objectContaining({ duration: 5000 })
+    );
+
+    notify.warning('Limite quase atingido.');
+    expect(toast.warning).toHaveBeenCalledWith(
+      'Limite quase atingido.',
       expect.objectContaining({ duration: 5000 })
     );
   });
