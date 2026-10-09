@@ -46,6 +46,8 @@ export type CommunityBrowseQuery = {
   sort: 'votes' | 'recent';
   skip: number;
   take: number;
+  /** Omit versions created by this user (other families only). */
+  excludeCreatedByUserId?: string;
 };
 
 export interface AdaptationRepository {
@@ -59,6 +61,7 @@ export interface AdaptationRepository {
     bibleVersionId: string;
     verseFrom: number;
     verseTo: number;
+    excludeCreatedByUserId?: string;
   }): Promise<PassageAdaptation[]>;
   listCommunityBrowse(
     query: CommunityBrowseQuery

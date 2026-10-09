@@ -155,7 +155,7 @@ export const container = {
     quiz: new QuizService(adaptationRepo),
     moderation: moderationService,
     votes: new VoteService(voteRepo, adaptationRepo, userStoryRepo, moderationService),
-    communityBrowse: new CommunityBrowseService(adaptationRepo, voteRepo, userStoryRepo),
+    communityBrowse: new CommunityBrowseService(adaptationRepo, voteRepo),
     audio: audioService,
     storageAccess: storageAccessService,
     userData: new UserDataService(prisma, storageProvider),

@@ -14,7 +14,6 @@ export type CommunityVersionItem = {
   excerpt: string;
   status: string;
   userVote: 1 | -1 | null;
-  isOwner: boolean;
 };
 
 interface CommunityVersionsPanelProps {
@@ -60,7 +59,6 @@ export function CommunityVersionsPanel({
           adaptationNote?: string | null;
           status: string;
           userVote?: 1 | -1 | null;
-          isOwner?: boolean;
         }>;
       };
       if (!json.ok || !json.data?.length) return [];
@@ -72,11 +70,14 @@ export function CommunityVersionsPanel({
         excerpt: item.adaptationNote ?? 'Versão aprovada pela comunidade',
         status: item.status,
         userVote: item.userVote ?? null,
-        isOwner: item.isOwner ?? false,
       }));
     },
     enabled: Boolean(anchorAdaptationId),
   });
+
+  if (!isLoading && communityVersions.length === 0) {
+    return null;
+  }
 
   return (
     <div
@@ -122,7 +123,7 @@ export function CommunityVersionsPanel({
 
           {isLoading ? (
             <p className="text-xs text-oliva/80">Carregando versões...</p>
-          ) : communityVersions.length > 0 ? (
+          ) : (
             <div className="space-y-2 pt-1">
               {communityVersions.map((version) => {
                 const isViewing = version.id === viewingAdaptationId;
@@ -200,10 +201,6 @@ export function CommunityVersionsPanel({
                 );
               })}
             </div>
-          ) : (
-            <p className="text-xs text-oliva/80 pt-1">
-              Ainda não há outras versões publicadas para esta passagem.
-            </p>
           )}
         </div>
       ) : null}

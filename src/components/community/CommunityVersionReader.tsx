@@ -14,7 +14,7 @@ type ReaderMeta = {
   voteScore: number;
   voteCount: number;
   userVote: 1 | -1 | null;
-  isOwner: boolean;
+  isCreatedByViewer: boolean;
   passageReference?: string;
   ageTierLabel?: string;
   title?: string;
@@ -41,10 +41,9 @@ export function CommunityVersionReader({ adaptationId }: CommunityVersionReaderP
     async function load() {
       setLoading(true);
       try {
-        const [contentResult, statusResponse, versionsResponse] = await Promise.all([
+        const [contentResult, statusResponse] = await Promise.all([
           getAdaptationContentAction(adaptationId),
           fetch(`/api/adaptations/${adaptationId}/status`),
-          fetch(`/api/adaptations/${adaptationId}/versions`),
         ]);
 
         if (cancelled) return;
@@ -55,34 +54,22 @@ export function CommunityVersionReader({ adaptationId }: CommunityVersionReaderP
 
         const statusJson = (await statusResponse.json()) as {
           ok: boolean;
-          data?: { status: string; voteScore: number; voteCount: number };
-        };
-
-        let userVote: 1 | -1 | null = null;
-        let isOwner = false;
-        if (versionsResponse.ok) {
-          const versionsJson = (await versionsResponse.json()) as {
-            ok: boolean;
-            data?: Array<{
-              id: string;
-              userVote?: 1 | -1 | null;
-              isOwner?: boolean;
-              title?: string;
-            }>;
+          data?: {
+            status: string;
+            voteScore: number;
+            voteCount: number;
+            isCreatedByViewer?: boolean;
+            userVote?: 1 | -1 | null;
           };
-          const match =
-            versionsJson.data?.find((row) => row.id === adaptationId) ?? versionsJson.data?.[0];
-          userVote = match?.userVote ?? null;
-          isOwner = match?.isOwner ?? false;
-        }
+        };
 
         if (statusJson.ok && statusJson.data) {
           setMeta({
             status: statusJson.data.status,
             voteScore: statusJson.data.voteScore,
             voteCount: statusJson.data.voteCount,
-            userVote,
-            isOwner,
+            userVote: statusJson.data.userVote ?? null,
+            isCreatedByViewer: statusJson.data.isCreatedByViewer ?? false,
             title: contentResult.ok ? contentResult.data?.title : undefined,
           });
         }
@@ -189,15 +176,22 @@ export function CommunityVersionReader({ adaptationId }: CommunityVersionReaderP
         </div>
       ) : null}
 
+      {meta.isCreatedByViewer ? (
+        <p className="text-sm text-oliva bg-pergaminho-escuro/60 rounded-xl px-4 py-3">
+          Esta versão foi criada pela sua família. Ela continua na sua biblioteca — aqui você só
+          pode ler e denunciar, se necessário.
+        </p>
+      ) : null}
+
       <CommunityVersionActions
         version={{
           id: adaptationId,
           userVote: meta.userVote,
-          isOwner: meta.isOwner,
         }}
         childName={childName}
         childProfileId={activeProfile?.id}
         size="md"
+        allowVoteAndAdopt={!meta.isCreatedByViewer}
         onFeedback={(message, variant) => setFeedback({ message, variant })}
         onVoteSuccess={({ voteScore, voteCount, value }) => {
           setMeta((current) =>

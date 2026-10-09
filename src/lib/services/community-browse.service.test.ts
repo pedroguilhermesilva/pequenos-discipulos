@@ -4,17 +4,16 @@ import { CommunityBrowseService } from '@/lib/services/community-browse.service'
 describe('CommunityBrowseService', () => {
   const adaptations = { listCommunityBrowse: vi.fn() };
   const votes = { findByUserAndAdaptation: vi.fn() };
-  const userStories = { findByUserAndAdaptation: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   function buildService() {
-    return new CommunityBrowseService(adaptations as never, votes as never, userStories as never);
+    return new CommunityBrowseService(adaptations as never, votes as never);
   }
 
-  it('returns paginated community items with user vote and owner flag', async () => {
+  it('returns paginated community items with user vote and excludes own versions in query', async () => {
     vi.mocked(adaptations.listCommunityBrowse).mockResolvedValue([
       {
         id: 'adapt-1',
@@ -39,7 +38,6 @@ describe('CommunityBrowseService', () => {
       },
     ] as never);
     vi.mocked(votes.findByUserAndAdaptation).mockResolvedValue({ value: 1 } as never);
-    vi.mocked(userStories.findByUserAndAdaptation).mockResolvedValue(null);
 
     const result = await buildService().listForUser('user-a', {
       sort: 'votes',
@@ -49,10 +47,13 @@ describe('CommunityBrowseService', () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.userVote).toBe(1);
-    expect(result.items[0]?.isOwner).toBe(false);
     expect(result.items[0]?.excerpt).toContain('Era uma vez');
     expect(adaptations.listCommunityBrowse).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 0, take: 13 })
+      expect.objectContaining({
+        skip: 0,
+        take: 13,
+        excludeCreatedByUserId: 'user-a',
+      })
     );
   });
 
@@ -75,7 +76,6 @@ describe('CommunityBrowseService', () => {
       })) as never
     );
     vi.mocked(votes.findByUserAndAdaptation).mockResolvedValue(null);
-    vi.mocked(userStories.findByUserAndAdaptation).mockResolvedValue(null);
 
     const result = await buildService().listForUser('user-a', {
       sort: 'votes',

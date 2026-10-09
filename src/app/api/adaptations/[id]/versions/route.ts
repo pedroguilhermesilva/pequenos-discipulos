@@ -9,32 +9,26 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
-    const versions = await container.services.votes.listCommunityVersions(id);
 
-    let userId: string | null = null;
+    let viewerUserId: string | undefined;
     try {
-      userId = await getCurrentUserId();
+      viewerUserId = await getCurrentUserId();
     } catch {
-      userId = null;
+      viewerUserId = undefined;
     }
+
+    const versions = await container.services.votes.listCommunityVersions(id, viewerUserId);
 
     const enriched = await Promise.all(
       versions.map(async (version) => {
         let userVote: 1 | -1 | null = null;
-        let isOwner = false;
 
-        if (userId) {
+        if (viewerUserId) {
           const vote = await container.repositories.votes.findByUserAndAdaptation(
-            userId,
+            viewerUserId,
             version.id
           );
           userVote = vote?.value === -1 ? -1 : vote?.value === 1 ? 1 : null;
-          isOwner =
-            version.createdByUserId === userId ||
-            (await container.repositories.userStories.findByUserAndAdaptation(
-              userId,
-              version.id
-            )) !== null;
         }
 
         return {
@@ -45,7 +39,6 @@ export async function GET(
           adaptationNote: version.adaptationNote,
           status: version.status,
           userVote,
-          isOwner,
         };
       })
     );

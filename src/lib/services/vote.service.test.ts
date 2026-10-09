@@ -104,6 +104,26 @@ describe('VoteService', () => {
     });
   });
 
+  describe('listCommunityVersions', () => {
+    it('excludes versions created by the viewer', async () => {
+      vi.mocked(adaptations.findById).mockResolvedValue({
+        id: 'adapt-1',
+        passageId: 'passage-1',
+        ageTier: 'TIER_3_5',
+        bibleVersionId: 'alm1911',
+        verseFrom: 1,
+        verseTo: 3,
+      } as never);
+      vi.mocked(adaptations.listCommunityVersions).mockResolvedValue([]);
+
+      await buildService().listCommunityVersions('adapt-1', 'user-a');
+
+      expect(adaptations.listCommunityVersions).toHaveBeenCalledWith(
+        expect.objectContaining({ excludeCreatedByUserId: 'user-a' })
+      );
+    });
+  });
+
   describe('vote', () => {
     it('allows voting on community adaptations from other users', async () => {
       vi.mocked(adaptations.findById).mockResolvedValue({

@@ -1,9 +1,7 @@
 import type { AgeTier, ContentType, PassageAdaptation } from '@prisma/client';
 import { fromPrismaAgeTier } from '@/lib/domain/mappers';
 import { extractAdaptationExcerpt } from '@/lib/community/adaptation-excerpt';
-import { COMMUNITY_VISIBLE_STATUSES } from '@/lib/moderation/constants';
 import type { AdaptationRepository } from '@/lib/repositories/interfaces/adaptation.repository';
-import type { UserStoryRepository } from '@/lib/repositories/interfaces/user-story.repository';
 import type { VoteRepository } from '@/lib/repositories/interfaces/vote.repository';
 import { formatAdaptationReference } from '@/lib/stories/bible-passages';
 import { getAgeTierLabel } from '@/lib/stories/age-tiers';
@@ -29,7 +27,6 @@ export type CommunityBrowseItem = {
   voteCount: number;
   status: PassageAdaptation['status'];
   userVote: 1 | -1 | null;
-  isOwner: boolean;
   contentType: ContentType;
   updatedAt: string;
 };
@@ -50,8 +47,7 @@ type PassageRow = {
 export class CommunityBrowseService {
   constructor(
     private readonly adaptations: AdaptationRepository,
-    private readonly votes: VoteRepository,
-    private readonly userStories: UserStoryRepository
+    private readonly votes: VoteRepository
   ) {}
 
   async listForUser(userId: string, filters: CommunityBrowseFilters): Promise<CommunityBrowsePage> {
@@ -63,14 +59,13 @@ export class CommunityBrowseService {
       sort: filters.sort,
       skip: page * limit,
       take: limit + 1,
+      excludeCreatedByUserId: userId,
     });
 
     const hasMore = rows.length > limit;
     const slice = hasMore ? rows.slice(0, limit) : rows;
 
-    const items = await Promise.all(
-      slice.map((row) => this.mapRow(userId, row))
-    );
+    const items = await Promise.all(slice.map((row) => this.mapRow(userId, row)));
 
     return { items, page, hasMore };
   }
@@ -82,9 +77,6 @@ export class CommunityBrowseService {
     const vote = await this.votes.findByUserAndAdaptation(userId, row.id);
     const userVote: 1 | -1 | null =
       vote?.value === -1 ? -1 : vote?.value === 1 ? 1 : null;
-    const isOwner =
-      row.createdByUserId === userId ||
-      (await this.userStories.findByUserAndAdaptation(userId, row.id)) !== null;
 
     const appTier = fromPrismaAgeTier(row.ageTier);
 
@@ -108,7 +100,6 @@ export class CommunityBrowseService {
       voteCount: row.voteCount,
       status: row.status,
       userVote,
-      isOwner,
       contentType: row.contentType,
       updatedAt: row.updatedAt.toISOString(),
     };

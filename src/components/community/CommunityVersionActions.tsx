@@ -8,7 +8,6 @@ import { adoptCommunityAdaptationAction } from '@/lib/stories/library-actions';
 export type CommunityVersionActionItem = {
   id: string;
   userVote: 1 | -1 | null;
-  isOwner: boolean;
 };
 
 interface CommunityVersionActionsProps {
@@ -28,6 +27,8 @@ interface CommunityVersionActionsProps {
   onAdopted?: (payload: { adaptationId: string; userStoryId: string }) => void;
   onReportSuccess?: () => void;
   onFeedback?: (message: string, variant: 'success' | 'error') => void;
+  /** When false, hides vote and adopt (e.g. direct link to own family version). */
+  allowVoteAndAdopt?: boolean;
   className?: string;
 }
 
@@ -45,6 +46,7 @@ export function CommunityVersionActions({
   onAdopted,
   onReportSuccess,
   onFeedback,
+  allowVoteAndAdopt = true,
   className,
 }: CommunityVersionActionsProps) {
   const [reporting, setReporting] = useState(false);
@@ -154,7 +156,7 @@ export function CommunityVersionActions({
           </a>
         ) : null}
 
-        {!version.isOwner ? (
+        {allowVoteAndAdopt ? (
           <>
             <button
               type="button"
@@ -186,23 +188,21 @@ export function CommunityVersionActions({
               <span className="material-symbols-outlined text-sm">thumb_down</span>
               {version.userVote === -1 ? 'Votou −' : 'Votar −'}
             </button>
-          </>
-        ) : (
-          <span className="text-[11px] text-oliva italic">Sua versão</span>
-        )}
 
-        <button
-          type="button"
-          disabled={adopting}
-          onClick={() => void handleAdopt()}
-          className={cn(
-            buttonClass,
-            'text-vida bg-vida/10 hover:bg-vida/15 focus-visible:ring-vida'
-          )}
-        >
-          <span className="material-symbols-outlined text-sm">bookmark_add</span>
-          {adopting ? 'Salvando...' : `Usar para ${childName}`}
-        </button>
+            <button
+              type="button"
+              disabled={adopting}
+              onClick={() => void handleAdopt()}
+              className={cn(
+                buttonClass,
+                'text-vida bg-vida/10 hover:bg-vida/15 focus-visible:ring-vida'
+              )}
+            >
+              <span className="material-symbols-outlined text-sm">bookmark_add</span>
+              {adopting ? 'Salvando...' : `Usar para ${childName}`}
+            </button>
+          </>
+        ) : null}
 
         <button
           type="button"

@@ -11,6 +11,13 @@ import type {
   LibraryFilters,
 } from '@/lib/repositories/interfaces/adaptation.repository';
 
+function excludeAdaptationsCreatedBy(userId?: string) {
+  if (!userId) return {};
+  return {
+    OR: [{ createdByUserId: { not: userId } }, { createdByUserId: null }],
+  };
+}
+
 export class PrismaAdaptationRepository implements AdaptationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -67,6 +74,7 @@ export class PrismaAdaptationRepository implements AdaptationRepository {
       where: {
         status: { in: COMMUNITY_VISIBLE_STATUSES },
         ...(query.ageTier ? { ageTier: query.ageTier } : {}),
+        ...excludeAdaptationsCreatedBy(query.excludeCreatedByUserId),
         ...(search
           ? {
               passage: {
@@ -99,6 +107,7 @@ export class PrismaAdaptationRepository implements AdaptationRepository {
     bibleVersionId: string;
     verseFrom: number;
     verseTo: number;
+    excludeCreatedByUserId?: string;
   }): Promise<PassageAdaptation[]> {
     return this.prisma.passageAdaptation.findMany({
       where: {
@@ -108,6 +117,7 @@ export class PrismaAdaptationRepository implements AdaptationRepository {
         verseFrom: params.verseFrom,
         verseTo: params.verseTo,
         status: { in: COMMUNITY_VISIBLE_STATUSES },
+        ...excludeAdaptationsCreatedBy(params.excludeCreatedByUserId),
       },
       orderBy: [{ voteScore: 'desc' }, { version: 'desc' }],
     });
