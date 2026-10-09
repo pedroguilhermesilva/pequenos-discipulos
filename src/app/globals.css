@@ -29,6 +29,108 @@ body {
   @apply bg-pergaminho text-tinta font-sans antialiased;
 }
 
+/* Toasts (sonner) — paleta por data-type; Toaster usa unstyled */
+[data-sonner-toast].notify-toast {
+  border-radius: var(--radius-livro);
+  box-shadow: var(--shadow-livro);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  padding: 0.75rem 1rem;
+  border-width: 1px;
+  border-style: solid;
+}
+
+[data-sonner-toast] .notify-toast-title {
+  font-weight: 600;
+}
+
+[data-sonner-toast] .notify-toast-description {
+  font-size: 0.875rem;
+}
+
+[data-sonner-toast] .notify-toast-icon {
+  flex-shrink: 0;
+}
+
+[data-sonner-toast][data-type='error'] {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #7f1d1d !important;
+}
+
+[data-sonner-toast][data-type='error'] [data-title] {
+  color: #7f1d1d;
+}
+
+[data-sonner-toast][data-type='error'] [data-description] {
+  color: #991b1b;
+}
+
+[data-sonner-toast][data-type='error'] [data-icon] {
+  color: #dc2626;
+}
+
+[data-sonner-toast][data-type='success'] {
+  background-color: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #14532d !important;
+}
+
+[data-sonner-toast][data-type='success'] [data-title] {
+  color: #14532d;
+}
+
+[data-sonner-toast][data-type='success'] [data-description] {
+  color: #166534;
+}
+
+[data-sonner-toast][data-type='success'] [data-icon] {
+  color: #16a34a;
+}
+
+[data-sonner-toast][data-type='info'] {
+  background-color: var(--color-ceu-claro);
+  border-color: rgb(2 132 199 / 0.35);
+  color: var(--color-tinta);
+}
+
+[data-sonner-toast][data-type='info'] [data-title] {
+  color: var(--color-tinta);
+}
+
+[data-sonner-toast][data-type='info'] [data-description] {
+  color: var(--color-oliva);
+}
+
+[data-sonner-toast][data-type='info'] [data-icon] {
+  color: var(--color-ceu);
+}
+
+[data-sonner-toast][data-type='warning'] {
+  background-color: var(--color-laranja-suave);
+  border-color: rgb(249 115 22 / 0.35);
+  color: var(--color-vida-dark);
+}
+
+[data-sonner-toast][data-type='warning'] [data-title] {
+  color: var(--color-vida-dark);
+}
+
+[data-sonner-toast][data-type='warning'] [data-description] {
+  color: var(--color-oliva);
+}
+
+[data-sonner-toast][data-type='warning'] [data-icon] {
+  color: var(--color-laranja);
+}
+
+[data-sonner-toast] .notify-toast-close {
+  border: 1px solid var(--color-borda);
+  background: rgb(255 255 255 / 0.92);
+  color: var(--color-oliva);
+}
+
 @layer utilities {
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;

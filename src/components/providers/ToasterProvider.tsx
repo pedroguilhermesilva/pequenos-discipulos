@@ -9,11 +9,13 @@ export function ToasterProvider() {
       position="top-center"
       expand={false}
       richColors={false}
+      invert={false}
+      theme="light"
       closeButton
       offset={{ top: 'max(1rem, env(safe-area-inset-top))' }}
       mobileOffset={{ top: 'max(1rem, env(safe-area-inset-top))' }}
       toastOptions={{
-        unstyled: false,
+        unstyled: true,
         classNames: NOTIFY_TOAST_CLASS_NAMES,
       }}
     />
