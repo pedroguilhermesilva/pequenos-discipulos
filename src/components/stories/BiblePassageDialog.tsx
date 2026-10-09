@@ -342,9 +342,9 @@ export function BiblePassageDialog({
   return (
     <div
       className={cn(
-        'fixed inset-0 z-50 flex justify-center bg-tinta/60 backdrop-blur-sm',
-        'items-end p-0 sm:items-center sm:p-4',
-        'pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]'
+        'fixed inset-0 z-50 flex bg-tinta/60',
+        'max-sm:items-stretch max-sm:justify-stretch max-sm:p-0',
+        'sm:items-center sm:justify-center sm:p-4 sm:backdrop-blur-sm'
       )}
       role="dialog"
       aria-modal="true"
@@ -354,10 +354,10 @@ export function BiblePassageDialog({
       <div
         ref={dialogRef}
         className={cn(
-          'relative flex w-full flex-col bg-white shadow-2xl border border-borda animate-fade-in',
-          'max-sm:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]',
-          'max-sm:min-h-[min(88dvh,100%)] max-sm:rounded-t-livro-xl',
-          'sm:max-h-[min(85dvh,720px)] sm:max-w-2xl sm:rounded-livro-xl'
+          'relative flex w-full flex-col bg-white animate-fade-in',
+          'max-sm:h-dvh max-sm:max-h-dvh max-sm:min-h-0 max-sm:rounded-none max-sm:border-0 max-sm:shadow-none',
+          'max-sm:pt-[env(safe-area-inset-top,0px)]',
+          'sm:max-h-[min(85dvh,720px)] sm:max-w-2xl sm:rounded-livro-xl sm:border sm:border-borda sm:shadow-2xl'
         )}
         onClick={(e) => e.stopPropagation()}
       >
