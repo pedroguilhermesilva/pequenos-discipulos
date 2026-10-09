@@ -1,6 +1,7 @@
 export type AppNavId =
   | 'home'
   | 'library'
+  | 'community'
   | 'favorites'
   | 'settings'
   | 'moderation'
@@ -17,6 +18,7 @@ export interface AppNavItem {
 const baseAppNavItems: AppNavItem[] = [
   { id: 'home', label: 'Início', icon: 'home', href: '/home' },
   { id: 'library', label: 'Biblioteca', icon: 'library_books', href: '/biblioteca' },
+  { id: 'community', label: 'Comunidade', icon: 'groups', href: '/comunidade' },
   { id: 'favorites', label: 'Favoritos', icon: 'favorite', href: '/favoritos' },
   { id: 'settings', label: 'Configurações', icon: 'settings', href: '/configuracoes' },
   { id: 'help', label: 'Ajuda', icon: 'help', href: '/ajuda' },
@@ -60,6 +62,9 @@ export function getActiveNavId(pathname: string): AppNavId {
     pathname === '/nova-historia'
   ) {
     return 'library';
+  }
+  if (pathname === '/comunidade' || pathname.startsWith('/comunidade/')) {
+    return 'community';
   }
   if (pathname === '/favoritos') return 'favorites';
   if (pathname === '/configuracoes' || pathname === '/perfis') return 'settings';

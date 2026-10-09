@@ -6,6 +6,7 @@ import {
 import type {
   AdaptationLookupKey,
   AdaptationRepository,
+  CommunityBrowseQuery,
   CreateAdaptationInput,
   LibraryFilters,
 } from '@/lib/repositories/interfaces/adaptation.repository';
@@ -57,6 +58,38 @@ export class PrismaAdaptationRepository implements AdaptationRepository {
       },
       orderBy: [{ voteScore: 'desc' }, { updatedAt: 'desc' }],
       take: filters.limit ?? 50,
+    });
+  }
+
+  listCommunityBrowse(query: CommunityBrowseQuery) {
+    const search = query.search?.trim();
+    return this.prisma.passageAdaptation.findMany({
+      where: {
+        status: { in: COMMUNITY_VISIBLE_STATUSES },
+        ...(query.ageTier ? { ageTier: query.ageTier } : {}),
+        ...(search
+          ? {
+              passage: {
+                OR: [
+                  { book: { contains: search, mode: 'insensitive' } },
+                  { reference: { contains: search, mode: 'insensitive' } },
+                  { slug: { contains: search, mode: 'insensitive' } },
+                ],
+              },
+            }
+          : {}),
+      },
+      include: {
+        passage: {
+          select: { slug: true, reference: true, book: true, preview: true },
+        },
+      },
+      orderBy:
+        query.sort === 'recent'
+          ? [{ updatedAt: 'desc' }, { id: 'desc' }]
+          : [{ voteScore: 'desc' }, { voteCount: 'desc' }, { id: 'desc' }],
+      skip: query.skip,
+      take: query.take,
     });
   }
 

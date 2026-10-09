@@ -210,6 +210,7 @@ model PassageAdaptation {
   @@unique([passageId, bibleVersionId, verseFrom, verseTo, ageTier, languageStyle, contentType, version])
   @@index([passageId, ageTier, contentType, status])
   @@index([status, voteScore])
+  @@index([status, updatedAt(sort: Desc)])
   @@index([createdByUserId])
   @@index([passageId, bibleVersionId, verseFrom, verseTo, ageTier, languageStyle, contentType])
 }

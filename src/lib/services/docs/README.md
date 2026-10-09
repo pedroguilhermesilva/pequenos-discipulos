@@ -115,6 +115,15 @@ Votos e aprovação familiar — **sempre** atrás de parent gate validado no se
 
 - **`adoptCommunityAdaptation`:** liga uma versão comunitária ao perfil de criança activo (`UserStory` upsert + progresso). Action: `adoptCommunityAdaptationAction`.
 
+## CommunityBrowseService
+
+Lista global de versões `community` / `as_default` para a página `/comunidade`.
+
+- **Filtros:** busca por livro/passagem (`Passage`), faixa etária, ordenação por votos ou data.
+- **Paginação:** `page` + `limit` (12), botão “Carregar mais” no cliente.
+- **Action:** `browseCommunityAction` em `src/lib/community/actions.ts`.
+- **Leitura:** `/comunidade/versao/[adaptationId]` — conteúdo + acções partilhadas (`CommunityVersionActions`).
+
 ## ModerationService
 
 Revisão antes de uma versão entrar na comunidade (issue #12).

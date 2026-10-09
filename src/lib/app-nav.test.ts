@@ -7,6 +7,7 @@ describe('buildAppNavItems', () => {
     expect(items.map((item) => item.id)).toEqual([
       'home',
       'library',
+      'community',
       'favorites',
       'settings',
       'help',
@@ -18,6 +19,7 @@ describe('buildAppNavItems', () => {
     expect(items.map((item) => item.id)).toEqual([
       'home',
       'library',
+      'community',
       'favorites',
       'settings',
       'moderation',
@@ -39,5 +41,10 @@ describe('buildAppNavItems', () => {
 describe('getActiveNavId', () => {
   it('marks moderation route as active', () => {
     expect(getActiveNavId('/admin/moderacao')).toBe('moderation');
+  });
+
+  it('marks community routes as active', () => {
+    expect(getActiveNavId('/comunidade')).toBe('community');
+    expect(getActiveNavId('/comunidade/versao/abc')).toBe('community');
   });
 });

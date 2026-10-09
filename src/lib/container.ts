@@ -28,6 +28,7 @@ import { QuizService } from '@/lib/services/quiz.service';
 import { StoryCacheService } from '@/lib/services/story-cache.service';
 import { StoryGenerationService } from '@/lib/services/story-generation.service';
 import { VoteService } from '@/lib/services/vote.service';
+import { CommunityBrowseService } from '@/lib/services/community-browse.service';
 import { AudioService } from '@/lib/services/audio.service';
 import { StorageAccessService } from '@/lib/services/storage-access.service';
 import { UserDataService } from '@/lib/services/user-data.service';
@@ -154,6 +155,7 @@ export const container = {
     quiz: new QuizService(adaptationRepo),
     moderation: moderationService,
     votes: new VoteService(voteRepo, adaptationRepo, userStoryRepo, moderationService),
+    communityBrowse: new CommunityBrowseService(adaptationRepo, voteRepo, userStoryRepo),
     audio: audioService,
     storageAccess: storageAccessService,
     userData: new UserDataService(prisma, storageProvider),
