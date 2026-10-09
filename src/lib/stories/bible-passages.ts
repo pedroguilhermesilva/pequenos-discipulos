@@ -61,23 +61,7 @@ export function toBibleVerseLines(verses: string[], verseFrom: number): BibleVer
     .filter((verse) => verse.text.length > 0);
 }
 
-export function parsePassageSourceVerses(
-  sourceText: unknown,
-  verseFrom: number,
-  verseTo: number
-): BibleVerseLine[] {
-  if (!sourceText || typeof sourceText !== 'object') return [];
-
-  const verses = (sourceText as { verses?: unknown }).verses;
-  if (!Array.isArray(verses) || verses.length === 0) return [];
-
-  const texts = verses.filter((verse): verse is string => typeof verse === 'string');
-  if (texts.length === 0) return [];
-
-  return toBibleVerseLines(texts, verseFrom).filter(
-    (verse) => verse.number >= verseFrom && verse.number <= verseTo
-  );
-}
+export { parsePassageSourceVerses } from '@/lib/bible/source-text';
 
 export function chunkBibleVerses(
   verses: BibleVerseLine[],

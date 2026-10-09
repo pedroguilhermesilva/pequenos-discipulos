@@ -87,6 +87,8 @@ function StoryPageInner({ storyId, serverSearchParams }: StoryPageContentProps) 
   const [dbVerseTo, setDbVerseTo] = useState<number | null>(null);
   const [dbContentType, setDbContentType] = useState<ContentType | null>(null);
   const [dbSourceVerses, setDbSourceVerses] = useState<BibleVerseLine[]>([]);
+  const [dbSourceVersesError, setDbSourceVersesError] = useState<string | null>(null);
+  const [dbBibleVersionId, setDbBibleVersionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!routeIsNewStory || !activeProfile) return;
@@ -118,11 +120,15 @@ function StoryPageInner({ storyId, serverSearchParams }: StoryPageContentProps) 
           setDbVerseFrom(detail.verseFrom);
           setDbVerseTo(detail.verseTo);
           setDbSourceVerses(detail.sourceVerses);
+          setDbSourceVersesError(detail.sourceVersesError ?? null);
+          setDbBibleVersionId(detail.bibleVersionId);
           setDbContentType(detail.summary.defaultContentType ?? null);
           setResolvedStoryId((current) => current ?? effectiveStoryId);
         } else {
           setDbStory(null);
           setDbSourceVerses([]);
+          setDbSourceVersesError(null);
+          setDbBibleVersionId(null);
         }
       } finally {
         if (!cancelled && shouldBlockUi) {
@@ -192,6 +198,19 @@ function StoryPageInner({ storyId, serverSearchParams }: StoryPageContentProps) 
       setInitialAdaptationQuiz(result.quiz ?? null);
       setInitialAdaptationNote(result.adaptationNote ?? null);
       setNewStory((prev) => ({ ...prev, id: result.userStoryId, title: result.title }));
+
+      void (async () => {
+        try {
+          const detail = await getUserStoryAction(result.userStoryId);
+          if (detail) {
+            setDbSourceVerses(detail.sourceVerses);
+            setDbSourceVersesError(detail.sourceVersesError ?? null);
+            setDbBibleVersionId(detail.bibleVersionId);
+          }
+        } catch {
+          // A janela da passagem ainda pode carregar o texto sob demanda.
+        }
+      })();
 
       if (activeProfile && !activeProfile.hasCreatedStory) {
         markProfileHasCreatedStory(activeProfile.id);
@@ -320,6 +339,8 @@ function StoryPageInner({ storyId, serverSearchParams }: StoryPageContentProps) 
           adaptationId={adaptationId ?? undefined}
           userStoryId={resolvedStoryId ?? story.id}
           initialSourceVerses={dbSourceVerses.length > 0 ? dbSourceVerses : undefined}
+          initialSourceVersesError={dbSourceVersesError}
+          bibleVersionId={dbBibleVersionId ?? undefined}
           initialAdaptationContent={initialAdaptationContent ?? undefined}
           initialAdaptationQuiz={initialAdaptationQuiz ?? undefined}
           initialAdaptationNote={initialAdaptationNote ?? undefined}

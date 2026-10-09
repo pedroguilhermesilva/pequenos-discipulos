@@ -71,7 +71,19 @@ Ver comparativo de vozes: `docs/google-tts-voices-pt-br.md`.
 
 ## Índice bíblico
 
-Metadados em `data/bible/index.json` — livros, abreviações, testamentos, versículos por capítulo. Usado pela UI para seleção/validação; **não** inclui texto dos versículos.
+Metadados em `data/bible/index.json` — livros, abreviações, testamentos, versículos por capítulo. Usado pela UI para seleção/validação; **não** inclui texto dos versículos no repo.
+
+## BibleTextService
+
+Obtém o texto original (Almeida 1911) para a janela «Passagem bíblica»:
+
+1. Lê versículos já guardados em `Passage.sourceText.verses` (capítulo completo).
+2. Se faltarem, faz fetch a `damarals/biblias` v1.0.0 (`fetch-chapter-text.ts`) e persiste em `Passage.sourceText`.
+3. Devolve o intervalo pedido (`verseFrom`–`verseTo`) via `parsePassageSourceVerses`.
+
+**Integração:** `LibraryService.getUserStory` (carregamento da história) e `getPassageSourceVersesAction` (fallback ao abrir a janela). A geração de histórias continua a enviar **só a referência** ao LLM.
+
+**Env opcional:** `BIBLE_TEXT_BASE_URL` — URL base dos JSON canónicos (default: raw GitHub `damarals/biblias` v1.0.0).
 
 ## ChildProfileService
 
