@@ -9,7 +9,7 @@ import { SubscriptionPlansModal } from '@/components/settings/SubscriptionPlansM
 import { UsageLimitBar } from '@/components/settings/UsageLimitBar';
 import { saveUserProfile } from '@/lib/user/actions';
 import type { UserSettings } from '@/lib/user/types';
-import { cn } from '@/lib/cn';
+import { notify } from '@/lib/notify';
 
 interface SettingsContentProps {
   initialSettings: UserSettings;
@@ -31,23 +31,14 @@ export function SettingsContent({ initialSettings }: SettingsContentProps) {
     initialSettings.account.fullName ?? initialSettings.preferences.childName
   );
   const [editingProfile, setEditingProfile] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [plansModalOpen, setPlansModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const clearMessages = () => {
-    setSaveMessage(null);
-    setSaveError(null);
-  };
-
   const handleSaveProfile = () => {
-    clearMessages();
-
     startTransition(async () => {
       if (settings.isDemo) {
         setEditingProfile(false);
-        setSaveMessage('Inicie sessão para guardar o perfil na conta.');
+        notify.info('Inicie sessão para guardar o perfil na conta.');
         return;
       }
 
@@ -58,9 +49,9 @@ export function SettingsContent({ initialSettings }: SettingsContentProps) {
           account: { ...prev.account, fullName },
         }));
         setEditingProfile(false);
-        setSaveMessage('Perfil atualizado com sucesso.');
+        notify.success('Perfil atualizado com sucesso.');
       } else {
-        setSaveError(result.error ?? 'Erro ao guardar.');
+        notify.error(result.error ?? 'Erro ao guardar. Tente de novo.');
       }
     });
   };
@@ -68,7 +59,6 @@ export function SettingsContent({ initialSettings }: SettingsContentProps) {
   const handleCancelProfile = () => {
     setFullName(settings.account.fullName ?? settings.preferences.childName);
     setEditingProfile(false);
-    clearMessages();
   };
 
   const displayName = settings.account.fullName ?? 'Utilizador';
@@ -81,20 +71,6 @@ export function SettingsContent({ initialSettings }: SettingsContentProps) {
 
   return (
     <div className="space-y-6">
-      {(saveMessage || saveError) && (
-        <div
-          role="status"
-          className={cn(
-            'rounded-livro border px-4 py-3 text-sm font-medium',
-            saveError
-              ? 'bg-dourado/10 border-dourado/30 text-tinta'
-              : 'bg-laranja/10 border-laranja/20 text-laranja'
-          )}
-        >
-          {saveError ?? saveMessage}
-        </div>
-      )}
-
       {settings.isDemo && (
         <p className="text-xs text-oliva/80 bg-pergaminho-escuro border border-borda rounded-lg px-3 py-2">
           A mostrar dados de exemplo. Inicie sessão para sincronizar preferências e limites reais.
@@ -110,10 +86,7 @@ export function SettingsContent({ initialSettings }: SettingsContentProps) {
           !editingProfile ? (
             <button
               type="button"
-              onClick={() => {
-                clearMessages();
-                setEditingProfile(true);
-              }}
+              onClick={() => setEditingProfile(true)}
               className="text-sm font-semibold text-vida hover:text-vida-dark transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-vida rounded"
             >
               Editar
@@ -194,14 +167,8 @@ export function SettingsContent({ initialSettings }: SettingsContentProps) {
         profiles={profiles}
         activeProfileId={activeProfile?.id ?? null}
         isDemo={settings.isDemo}
-        onSaved={(message) => {
-          setSaveError(null);
-          setSaveMessage(message);
-        }}
-        onError={(message) => {
-          setSaveMessage(null);
-          setSaveError(message);
-        }}
+        onSaved={(message) => notify.success(message)}
+        onError={(message) => notify.error(message)}
       />
 
       <SettingsSection

@@ -11,6 +11,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { LegalFooterLinks } from '@/components/legal/LegalFooterLinks';
 import { CURRENT_CONSENT_VERSION } from '@/lib/privacy/constants';
 import { sanitizeCallbackPath } from '@/lib/auth/safe-redirect-client';
+import { notify } from '@/lib/notify';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Credenciais inválidas.';
 
@@ -24,7 +25,6 @@ export function LoginPageContent() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
   const [consentAccepted, setConsentAccepted] = useState(false);
 
   const hasGoogle = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === 'true';
@@ -32,7 +32,6 @@ export function LoginPageContent() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -45,26 +44,26 @@ export function LoginPageContent() {
       setLoading(false);
 
       if (!json.ok) {
-        setMessage(json.message ?? INVALID_CREDENTIALS_MESSAGE);
+        notify.error(json.message ?? INVALID_CREDENTIALS_MESSAGE);
         return;
       }
 
+      notify.success('Login realizado com sucesso.');
       await getSession();
       router.push(callbackUrl);
       router.refresh();
     } catch {
       setLoading(false);
-      setMessage('Erro de rede. Tente novamente.');
+      notify.error('Erro de rede. Verifique a conexão e tente de novo.');
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
 
     if (!consentAccepted) {
-      setMessage('Aceite a Política de Privacidade e os Termos de Uso para criar a conta.');
+      notify.error('Aceite a Política de Privacidade e os Termos de Uso para criar a conta.');
       setLoading(false);
       return;
     }
@@ -84,7 +83,7 @@ export function LoginPageContent() {
       const json = (await response.json()) as { ok: boolean; message?: string };
 
       if (!json.ok) {
-        setMessage(json.message ?? 'Não foi possível criar a conta.');
+        notify.error(json.message ?? 'Não foi possível criar a conta. Tente de novo.');
         setLoading(false);
         return;
       }
@@ -99,16 +98,17 @@ export function LoginPageContent() {
       setLoading(false);
 
       if (!loginJson.ok) {
-        setMessage(loginJson.message ?? INVALID_CREDENTIALS_MESSAGE);
+        notify.error(loginJson.message ?? INVALID_CREDENTIALS_MESSAGE);
         return;
       }
 
+      notify.success('Conta criada com sucesso.');
       await getSession();
       router.push('/onboarding/step-1');
       router.refresh();
     } catch {
       setLoading(false);
-      setMessage('Erro de rede. Tente novamente.');
+      notify.error('Erro de rede. Verifique a conexão e tente de novo.');
     }
   };
 
@@ -231,10 +231,7 @@ export function LoginPageContent() {
 
               <SecondaryButton
                 type="button"
-                onClick={() => {
-                  setMode(mode === 'login' ? 'signup' : 'login');
-                  setMessage('');
-                }}
+                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
                 disabled={loading}
                 fullWidth
               >
@@ -269,12 +266,6 @@ export function LoginPageContent() {
               Dev: use o utilizador seed{' '}
               <span className="font-mono">dev@pequenos-discipulos.local</span> /{' '}
               <span className="font-mono">devpassword123</span>
-            </p>
-          )}
-
-          {message && (
-            <p role="alert" className="mt-4 text-center text-sm font-medium text-red-600">
-              {message}
             </p>
           )}
 

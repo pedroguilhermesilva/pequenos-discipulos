@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getStoryHref, type StorySummary } from '@/lib/stories';
 import { getChildStoriesAction } from '@/lib/stories/library-actions';
 import { useChildProfiles } from '@/components/profiles/ChildProfileProvider';
+import { notify } from '@/lib/notify';
 
 interface StoryCollectionsSidebarProps {
   currentStory: StorySummary;
@@ -63,7 +64,6 @@ export function StoryCollectionsSidebar({
 }: StoryCollectionsSidebarProps) {
   const queryClient = useQueryClient();
   const [reportingId, setReportingId] = useState<string | null>(null);
-  const [reportMessage, setReportMessage] = useState<string | null>(null);
   const { activeProfile } = useChildProfiles();
   const { data: childStories = [] } = useQuery({
     queryKey: ['child-stories', activeProfile?.id ?? 'none'],
@@ -103,7 +103,6 @@ export function StoryCollectionsSidebar({
 
   const handleReport = async (versionId: string) => {
     setReportingId(versionId);
-    setReportMessage(null);
     try {
       const response = await fetch('/api/reports', {
         method: 'POST',
@@ -116,17 +115,17 @@ export function StoryCollectionsSidebar({
         message?: string;
       };
       if (!response.ok || !json.ok) {
-        setReportMessage(json.message ?? 'Não foi possível registrar a denúncia.');
+        notify.error(json.message ?? 'Não foi possível registrar a denúncia. Tente de novo.');
         return;
       }
-      setReportMessage(
+      notify.success(
         json.data?.withdrawn
           ? 'Obrigado. Esta versão foi retirada da comunidade.'
           : 'Denúncia registrada. Obrigado por ajudar a cuidar da comunidade.'
       );
       await queryClient.invalidateQueries({ queryKey: ['community-versions', adaptationId ?? 'none'] });
     } catch {
-      setReportMessage('Falha de rede ao denunciar.');
+      notify.error('Falha de rede ao denunciar. Verifique a conexão e tente de novo.');
     } finally {
       setReportingId(null);
     }
@@ -192,10 +191,6 @@ export function StoryCollectionsSidebar({
         <p className="text-xs text-oliva">
           Coexistem múltiplas adaptações para o mesmo trecho. A comunidade define o padrão.
         </p>
-
-        {reportMessage ? (
-          <p className="text-xs text-oliva bg-pergaminho-escuro/60 rounded-lg px-3 py-2">{reportMessage}</p>
-        ) : null}
 
         {communityVersions.length > 0 ? (
           <div className="space-y-2 pt-1">

@@ -15,6 +15,7 @@ import { createChildProfileAction, setActiveChildProfile } from '@/lib/profiles/
 import { clearOnboardingDraft, loadOnboardingDraft } from '@/lib/profiles/storage';
 import { isNewProfileMode } from '@/lib/onboarding/routing';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { notify } from '@/lib/notify';
 
 export function OnboardingStep3Content() {
   const router = useRouter();
@@ -49,8 +50,16 @@ export function OnboardingStep3Content() {
       preferences,
     });
 
-    if (result.ok) {
-      await setActiveChildProfile(result.data.id);
+    if (!result.ok) {
+      notify.error(result.message ?? 'Não foi possível criar o perfil. Tente de novo.');
+      return;
+    }
+
+    const setActiveResult = await setActiveChildProfile(result.data.id);
+    if (!setActiveResult.ok) {
+      notify.error(setActiveResult.message ?? 'Perfil criado, mas não foi possível ativá-lo.');
+    } else {
+      notify.success(`Perfil de ${preferences.childName} criado com sucesso.`);
     }
 
     clearOnboardingDraft();

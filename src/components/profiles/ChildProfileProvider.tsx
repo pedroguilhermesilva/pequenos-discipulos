@@ -36,6 +36,7 @@ import {
   shouldTreatProfilesAsUnknown,
 } from '@/lib/profiles/profile-guard-logic';
 import type { ChildProfile, ProfileAvatarColorId } from '@/lib/profiles/types';
+import { notify } from '@/lib/notify';
 
 export type RemoveProfileResult =
   | { ok: true; message: string }
@@ -228,7 +229,11 @@ export function ChildProfileProvider({ children }: { children: ReactNode }) {
                 setResult.data.profileId
               );
             }
+          } else {
+            notify.error(setResult.message ?? 'Não foi possível ativar o perfil criado.');
           }
+        } else {
+          notify.error(result.message ?? 'Não foi possível criar o perfil. Tente de novo.');
         }
         await queryClient.invalidateQueries({ queryKey: ['library'] });
         router.refresh();

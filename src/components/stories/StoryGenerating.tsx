@@ -14,6 +14,7 @@ import {
   type StoryGenerationData,
   type StoryGenerationOutcome,
 } from '@/lib/stories/request-story-generation';
+import { notify } from '@/lib/notify';
 
 const inFlightGenerations = new Map<string, Promise<StoryGenerationOutcome>>();
 
@@ -147,6 +148,7 @@ export function StoryGenerating({
 
         if (!outcome.ok) {
           setError({ message: outcome.message, retryable: outcome.retryable });
+          notify.error(outcome.message);
           onErrorRef.current?.(outcome.message);
           return;
         }
@@ -156,6 +158,7 @@ export function StoryGenerating({
         if (cancelled) return;
         const message = FRIENDLY_GENERATION_ERROR;
         setError({ message, retryable: true });
+        notify.error(message);
         onErrorRef.current?.(message);
       }
     }

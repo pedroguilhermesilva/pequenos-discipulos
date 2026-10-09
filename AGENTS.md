@@ -54,6 +54,12 @@ Roteiros manuais: `scripts/manual-test-pr1.md`, `scripts/manual-test-issue-15.md
 - Campos no `User`: `consentAcceptedAt`, `consentVersion` (`src/lib/privacy/constants.ts`)
 - Exportação: `GET /api/account/export` · Exclusão: Configurações → `UserDataService.deleteAccount`
 
+## Feedback na UI (toasts)
+
+- Biblioteca: [sonner](https://sonner.emilkowal.ski/) configurada em `src/app/layout.tsx` via `ToasterProvider`.
+- Helper único: `notify.error` / `notify.success` / `notify.info` em `src/lib/notify.ts`.
+- Erros inesperados (rede/servidor sem mensagem): `"Algo deu errado. Tente de novo."`
+
 ## Documentação de módulos
 
 - Serviços: `src/lib/services/docs/README.md`
