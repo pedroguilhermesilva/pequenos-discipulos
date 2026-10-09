@@ -29,28 +29,111 @@ body {
   @apply bg-pergaminho text-tinta font-sans antialiased;
 }
 
-/* Toasts (sonner) — paleta por data-type; Toaster usa unstyled */
+/* Toasts (sonner) — layout + paleta por data-type; Toaster usa unstyled */
+[data-sonner-toaster][data-sonner-theme='light'] {
+  --width: min(100vw - 2rem, 22rem);
+}
+
 [data-sonner-toast].notify-toast {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  width: var(--width, min(100vw - 2rem, 22rem));
+  min-width: min(16rem, calc(100vw - 2rem));
+  max-width: min(100vw - 2rem, 28rem);
   border-radius: var(--radius-livro);
   box-shadow: var(--shadow-livro);
   font-family: var(--font-dm-sans), system-ui, sans-serif;
   font-size: 0.875rem;
   line-height: 1.35;
-  padding: 0.75rem 1rem;
+  padding: 0.875rem 2.75rem 0.875rem 1rem;
   border-width: 1px;
   border-style: solid;
+  overflow: hidden;
+}
+
+[data-sonner-toast] .notify-toast-icon,
+[data-sonner-toast] [data-icon].notify-toast-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[data-sonner-toast] .notify-toast-icon svg,
+[data-sonner-toast] [data-icon] svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[data-sonner-toast] .notify-toast-content,
+[data-sonner-toast] [data-content].notify-toast-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 [data-sonner-toast] .notify-toast-title {
   font-weight: 600;
+  line-height: 1.35;
 }
 
 [data-sonner-toast] .notify-toast-description {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
 }
 
-[data-sonner-toast] .notify-toast-icon {
-  flex-shrink: 0;
+[data-sonner-toast] .notify-toast-close,
+[data-sonner-toast] [data-close-button].notify-toast-close {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+[data-sonner-toast] .notify-toast-close:hover,
+[data-sonner-toast] [data-close-button].notify-toast-close:hover {
+  opacity: 1;
+  background: rgb(15 23 42 / 0.06);
+}
+
+[data-sonner-toast] .notify-toast-close:focus-visible,
+[data-sonner-toast] [data-close-button].notify-toast-close:focus-visible {
+  opacity: 1;
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+[data-sonner-toast] .notify-toast-close svg,
+[data-sonner-toast] [data-close-button] svg {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 [data-sonner-toast][data-type='error'] {
@@ -123,12 +206,6 @@ body {
 
 [data-sonner-toast][data-type='warning'] [data-icon] {
   color: var(--color-laranja);
-}
-
-[data-sonner-toast] .notify-toast-close {
-  border: 1px solid var(--color-borda);
-  background: rgb(255 255 255 / 0.92);
-  color: var(--color-oliva);
 }
 
 @layer utilities {

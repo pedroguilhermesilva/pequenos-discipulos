@@ -1,6 +1,7 @@
 /** Estilos compartilhados do sonner — uma única fonte para ToasterProvider e notify. */
 export const NOTIFY_TOAST_CLASS_NAMES = {
   toast: 'notify-toast group toast',
+  content: 'notify-toast-content',
   title: 'notify-toast-title',
   description: 'notify-toast-description',
   icon: 'notify-toast-icon',
