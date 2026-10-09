@@ -45,10 +45,55 @@ export async function getUserStoryAction(storyId: string) {
   return container.services.library.getUserStory(user.id, storyId);
 }
 
+export async function adoptCommunityAdaptationAction(adaptationId: string, childProfileId?: string) {
+  const user = await requireCurrentUser();
+  const childId = childProfileId ?? (await getCurrentChildProfileId()) ?? undefined;
+
+  try {
+    const result = await container.services.library.adoptCommunityAdaptation(
+      user.id,
+      adaptationId,
+      childId
+    );
+    return { ok: true as const, data: result };
+  } catch (error) {
+    if (error instanceof Error && 'code' in error) {
+      return {
+        ok: false as const,
+        code: (error as { code: string }).code,
+        message: error.message,
+      };
+    }
+    return {
+      ok: false as const,
+      code: 'INTERNAL_ERROR' as const,
+      message: 'Não foi possível salvar esta versão.',
+    };
+  }
+}
+
 export async function getAdaptationContentAction(adaptationId: string) {
+  const user = await requireCurrentUser();
   const adaptation = await container.repositories.adaptations.findById(adaptationId);
   if (!adaptation) {
     return { ok: false as const, code: 'NOT_FOUND' as const, message: 'Adaptação não encontrada.' };
+  }
+
+  const isOwner =
+    adaptation.createdByUserId === user.id ||
+    (await container.repositories.userStories.findByUserAndAdaptation(user.id, adaptationId)) !==
+      null;
+
+  if (
+    !isOwner &&
+    adaptation.status !== 'community' &&
+    adaptation.status !== 'as_default'
+  ) {
+    return {
+      ok: false as const,
+      code: 'UNAUTHORIZED' as const,
+      message: 'Esta versão não está disponível.',
+    };
   }
 
   const content = adaptationContentSchema.safeParse(adaptation.content);

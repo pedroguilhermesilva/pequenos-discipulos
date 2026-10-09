@@ -22,10 +22,18 @@ export async function GET(
       throw new UnauthorizedError('Esta versão não está disponível.');
     }
 
+    const viewerVote = await container.repositories.votes.findByUserAndAdaptation(user.id, id);
+    const userVote: 1 | -1 | null =
+      viewerVote?.value === -1 ? -1 : viewerVote?.value === 1 ? 1 : null;
+
     return NextResponse.json({
       ok: true,
       data: {
         status: adaptation.status,
+        voteScore: adaptation.voteScore,
+        voteCount: adaptation.voteCount,
+        isCreatedByViewer: adaptation.createdByUserId === user.id,
+        userVote,
         moderationReason: adaptation.moderationReason,
         message: getFamilyModerationMessage(adaptation.status, adaptation.moderationReason),
       },

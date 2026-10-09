@@ -106,9 +106,23 @@ Versão actual dos termos: `CURRENT_CONSENT_VERSION` em `src/lib/privacy/constan
 
 Votos e aprovação familiar — **sempre** atrás de parent gate validado no servidor (`/api/votes`).
 
-- **Voto:** permitido em adaptações comunitárias de outros utilizadores; um voto por utilizador/adaptação (`AdaptationVote` unique).
+- **Voto:** permitido em adaptações com status `community` ou `as_default` de **outros** utilizadores; um voto por utilizador/adaptação (`AdaptationVote` unique, upsert). O **dono não pode votar na própria versão**.
 - **Aprovar em família:** apenas adaptações da família (criadas pelo utilizador ou ligadas via `UserStory`).
-- **Compartilhar com a comunidade:** delega a `ModerationService.submitForCommunityReview` — não publica directo.
+- **Compartilhar com a comunidade:** delega a `ModerationService.submitForCommunityReview` — moderação automática/manual (#12), não depende de 3 votos.
+- **Listagem:** `GET /api/adaptations/[id]/versions` — mesma passagem/versículos/faixa etária, ordenado por `voteScore`; **nunca inclui versões criadas pelo utilizador logado** (`createdByUserId`); inclui `userVote` quando autenticado.
+
+## LibraryService (versões da comunidade)
+
+- **`adoptCommunityAdaptation`:** liga uma versão comunitária ao perfil de criança activo (`UserStory` upsert + progresso). Action: `adoptCommunityAdaptationAction`.
+
+## CommunityBrowseService
+
+Lista global de versões `community` / `as_default` para a página `/comunidade`.
+
+- **Filtros:** busca por livro/passagem (`Passage`), faixa etária, ordenação por votos ou data. **Só versões de outras famílias** (exclui `createdByUserId` do utilizador logado).
+- **Paginação:** `page` + `limit` (12), botão “Carregar mais” no cliente.
+- **Action:** `browseCommunityAction` em `src/lib/community/actions.ts`.
+- **Leitura:** `/comunidade/versao/[adaptationId]` — conteúdo + acções partilhadas (`CommunityVersionActions`).
 
 ## ModerationService
 

@@ -34,7 +34,11 @@ export class VoteService {
       adaptation.createdByUserId === userId ||
       (await this.userStories.findByUserAndAdaptation(userId, adaptationId)) !== null;
 
-    if (!isOwner && !VOTABLE_STATUSES.has(adaptation.status)) {
+    if (isOwner) {
+      throw new UnauthorizedError('Você não pode votar na sua própria versão.');
+    }
+
+    if (!VOTABLE_STATUSES.has(adaptation.status)) {
       throw new UnauthorizedError('Esta adaptação ainda não está disponível para votação.');
     }
 
@@ -55,7 +59,7 @@ export class VoteService {
     return this.moderation.submitForCommunityReview(adaptationId, userId);
   }
 
-  async listCommunityVersions(adaptationId: string) {
+  async listCommunityVersions(adaptationId: string, viewerUserId?: string) {
     const adaptation = await this.adaptations.findById(adaptationId);
     if (!adaptation) throw new AdaptationNotFound();
 
@@ -65,6 +69,7 @@ export class VoteService {
       bibleVersionId: adaptation.bibleVersionId,
       verseFrom: adaptation.verseFrom,
       verseTo: adaptation.verseTo,
+      excludeCreatedByUserId: viewerUserId,
     });
   }
 

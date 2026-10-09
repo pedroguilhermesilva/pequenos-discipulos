@@ -86,6 +86,7 @@ async function main() {
 
   for (const { ageTier, appTier } of tiers) {
     const quiz = getStoryQuiz('1', appTier) ?? undefined;
+    const isDefaultTier = ageTier === 'TIER_3_5';
 
     await prisma.passageAdaptation.upsert({
       where: {
@@ -103,9 +104,11 @@ async function main() {
       update: {
         content,
         quiz,
-        status: 'community',
+        status: isDefaultTier ? 'as_default' : 'community',
         title: 'A Estrela de Mateus',
         createdByUserId: user.id,
+        voteScore: isDefaultTier ? 5 : 4.9,
+        voteCount: isDefaultTier ? 20 : 12,
       },
       create: {
         passageId: passage.id,
@@ -119,15 +122,120 @@ async function main() {
         quiz,
         adaptationNote:
           'O foco foi mantido na luz e na jornada, simplificando conflitos políticos.',
-        status: 'community',
+        status: isDefaultTier ? 'as_default' : 'community',
         version: 1,
         title: 'A Estrela de Mateus',
-        voteScore: 4.9,
-        voteCount: 12,
+        voteScore: isDefaultTier ? 5 : 4.9,
+        voteCount: isDefaultTier ? 20 : 12,
+        createdByUserId: user.id,
+      },
+    });
+
+    await prisma.passageAdaptation.upsert({
+      where: {
+        passageId_bibleVersionId_verseFrom_verseTo_ageTier_languageStyle_contentType_version: {
+          passageId: passage.id,
+          bibleVersionId: DEFAULT_BIBLE_VERSION_ID,
+          verseFrom: 1,
+          verseTo: 3,
+          ageTier,
+          languageStyle: 'simple',
+          contentType: 'text',
+          version: 2,
+        },
+      },
+      update: {
+        content,
+        quiz,
+        status: 'community',
+        title: 'Os Reis Magos e a Estrela',
+        voteScore: 4.2,
+        voteCount: 6,
+        adaptationNote: 'Versão alternativa com linguagem mais simples para a mesma passagem.',
+        createdByUserId: user.id,
+      },
+      create: {
+        passageId: passage.id,
+        bibleVersionId: DEFAULT_BIBLE_VERSION_ID,
+        verseFrom: 1,
+        verseTo: 3,
+        ageTier,
+        languageStyle: 'simple',
+        contentType: 'text',
+        content,
+        quiz,
+        adaptationNote: 'Versão alternativa com linguagem mais simples para a mesma passagem.',
+        status: 'community',
+        version: 2,
+        title: 'Os Reis Magos e a Estrela',
+        voteScore: 4.2,
+        voteCount: 6,
         createdByUserId: user.id,
       },
     });
   }
+
+  const jonasPassage = await prisma.passage.upsert({
+    where: { slug: 'jonas-1-3' },
+    update: {
+      reference: 'Jonas 1:1–3',
+      book: 'Jonas',
+      preview: 'Deus chama Jonas para ir a Nínive, mas ele tenta fugir de outro jeito.',
+    },
+    create: {
+      slug: 'jonas-1-3',
+      reference: 'Jonas 1:1–3',
+      book: 'Jonas',
+      preview: 'Deus chama Jonas para ir a Nínive, mas ele tenta fugir de outro jeito.',
+      sourceText: {
+        verses: [
+          'Veio a palavra do Senhor a Jonas, filho de Amitai, dizendo:',
+          'Levanta-te, e vai à grande cidade de Nínive, e clama contra ela, porque a sua malícia subiu até mim.',
+        ],
+      },
+    },
+  });
+
+  await prisma.passageAdaptation.upsert({
+    where: {
+      passageId_bibleVersionId_verseFrom_verseTo_ageTier_languageStyle_contentType_version: {
+        passageId: jonasPassage.id,
+        bibleVersionId: DEFAULT_BIBLE_VERSION_ID,
+        verseFrom: 1,
+        verseTo: 3,
+        ageTier: 'TIER_6_8',
+        languageStyle: 'simple',
+        contentType: 'text',
+        version: 1,
+      },
+    },
+    update: {
+      status: 'community',
+      title: 'Jonas e o Grande Peixe',
+      voteScore: 4.6,
+      voteCount: 9,
+      adaptationNote: 'Deus chama Jonas com carinho, mesmo quando ele tenta ir para o outro lado.',
+      createdByUserId: user.id,
+      content,
+    },
+    create: {
+      passageId: jonasPassage.id,
+      bibleVersionId: DEFAULT_BIBLE_VERSION_ID,
+      verseFrom: 1,
+      verseTo: 3,
+      ageTier: 'TIER_6_8',
+      languageStyle: 'simple',
+      contentType: 'text',
+      content,
+      status: 'community',
+      version: 1,
+      title: 'Jonas e o Grande Peixe',
+      voteScore: 4.6,
+      voteCount: 9,
+      adaptationNote: 'Deus chama Jonas com carinho, mesmo quando ele tenta ir para o outro lado.',
+      createdByUserId: user.id,
+    },
+  });
 
   const adaptation = await prisma.passageAdaptation.findFirstOrThrow({
     where: {

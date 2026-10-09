@@ -36,8 +36,12 @@ export async function POST(request: Request) {
     }
 
     const value = body.value === -1 ? -1 : 1;
-    const data = await container.services.votes.vote(user.id, body.adaptationId, value);
-    return NextResponse.json({ ok: true, data });
+    const { voteCount, voteScore } = await container.services.votes.vote(
+      user.id,
+      body.adaptationId,
+      value
+    );
+    return NextResponse.json({ ok: true, data: { voteCount, voteScore } });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

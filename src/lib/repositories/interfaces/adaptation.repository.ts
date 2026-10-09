@@ -40,6 +40,16 @@ export type LibraryFilters = {
   limit?: number;
 };
 
+export type CommunityBrowseQuery = {
+  search?: string;
+  ageTier?: AgeTier;
+  sort: 'votes' | 'recent';
+  skip: number;
+  take: number;
+  /** Omit versions created by this user (other families only). */
+  excludeCreatedByUserId?: string;
+};
+
 export interface AdaptationRepository {
   findByCacheKey(key: AdaptationLookupKey): Promise<PassageAdaptation | null>;
   findById(id: string): Promise<(PassageAdaptation & { passage: { slug: string; reference: string; book: string } }) | null>;
@@ -51,7 +61,17 @@ export interface AdaptationRepository {
     bibleVersionId: string;
     verseFrom: number;
     verseTo: number;
+    excludeCreatedByUserId?: string;
   }): Promise<PassageAdaptation[]>;
+  listCommunityBrowse(
+    query: CommunityBrowseQuery
+  ): Promise<
+    Array<
+      PassageAdaptation & {
+        passage: { slug: string; reference: string; book: string; preview: string | null };
+      }
+    >
+  >;
   updateStatus(id: string, status: AdaptationStatus): Promise<PassageAdaptation>;
   updateVotes(id: string, voteScore: number, voteCount: number): Promise<PassageAdaptation>;
 }
